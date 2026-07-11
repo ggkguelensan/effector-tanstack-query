@@ -27,6 +27,7 @@ function Component() {
 ## Behavior
 
 - Calls `addTodo.start()` on mount, `addTodo.unmounted()` on cleanup.
+- `start()` / `unmounted()` are reference-counted per scope, so several components can share one module-level mutation — a repeat `start()` never resubscribes (so an in-flight `finished.success` is never swallowed) and only the last unmount drops the subscription.
 - Subscribes to all state stores.
 - Returns bound `mutate(variables)`, `mutateWith(...)`, and `reset()` callbacks.
 

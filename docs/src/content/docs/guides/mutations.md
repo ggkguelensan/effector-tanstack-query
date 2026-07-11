@@ -136,4 +136,6 @@ Symmetric to queries:
 - `start()` — subscribe the observer
 - `unmounted()` — unsubscribe (lets `gcTime` collect the mutation entry)
 
+Both are **reference-counted per scope**: multiple consumers of one module-level mutation share the observer, a repeat `start()` only bumps the count (it does not resubscribe, so an in-flight `finished.success` is never swallowed), and only the last `unmounted()` drops the subscription. Extra `unmounted()` calls floor at zero.
+
 The [`useMutation`](/effector-tanstack-query/react/use-mutation/) hook handles both.

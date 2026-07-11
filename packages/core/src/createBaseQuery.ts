@@ -287,6 +287,23 @@ export function createBaseQuery<
         existingObserver ??
         config.createObserver(qc, { queryKey: key, enabled })
 
+      // A 2nd+ consumer mounting the same per-scope observer. There is exactly
+      // one logical observer per scope and it is already live: do NOT
+      // unsubscribe/resubscribe — that would rebuild the dispatcher closure
+      // below and reset its finished.success / finished.failure baseline,
+      // causing an in-flight fetch to re-report as a brand-new completion.
+      // No option sync is needed: this branch is only reachable while the
+      // observer stayed subscribed (refCount never hit 0), so $isMounted stayed
+      // true and updateObserverFx already applied every reactive key/enabled/
+      // refetchInterval change (via its full _defaulted/queryHash-stripping
+      // path — which this branch's plain spread couldn't even do). Deliberate
+      // semantic: a 2nd consumer mounting does NOT trigger a TanStack
+      // refetch-on-mount — the single live subscription already drives the
+      // shared stores.
+      if (existingObserver && observerSubscriptions.has(observer)) {
+        return observer
+      }
+
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })
       const dispatchStatus = scopeBind(statusUpdated, { safe: true })
@@ -408,11 +425,38 @@ export function createBaseQuery<
 
   const mounted = createEvent<void>()
   const unmounted = createEvent<void>()
+
+  // Per-scope reference count of live consumers. The query is a module-level
+  // singleton shared by every React component that reads it; each component
+  // calls mounted() on mount and unmounted() on cleanup. A boolean flag would
+  // let the FIRST unmount tear the observer down while other consumers are
+  // still reading it. Runtime-only — MUST be serialize:'ignore' so an
+  // SSR-serialized count never leaks into a client scope via
+  // fork({ values: serialize(scope) }). Mirrors createQueries.$refCount.
+  const $refCount = createStore(0, { serialize: 'ignore' })
+  const refCountChanged = createEvent<number>()
+  $refCount.on(refCountChanged, (_, next) => next)
+
+  // $isMounted remains a real writable store (keeping its sidConfig so
+  // serialize(scope) round-trips it for back-compat) but is now driven from
+  // refcount transitions: mounted iff at least one consumer is active.
+  // updateObserverFx is still filtered by it, so reactive key/enabled changes
+  // only touch the observer while it is subscribed.
   const $isMounted = createStore(false, {
     ...sidConfig(name, '$isMounted'),
+  }).on(refCountChanged, (_, next) => next > 0)
+
+  // A successful mount increments the refcount. Gating on mountFx.done — rather
+  // than incrementing on `mounted` and compensating a failed mount — means a
+  // client-less mount that throws simply never increments, so no floor-at-0
+  // decrement is needed. Mirrors createQueries, which increments off its mount
+  // effect's .done with no .fail compensation.
+  sample({
+    clock: mountFx.done,
+    source: $refCount,
+    fn: (count) => count + 1,
+    target: refCountChanged,
   })
-    .on(mounted, () => true)
-    .on(unmounted, () => false)
 
   // Combine of all reactive options that drive observer.setOptions. Built once
   // so mountFx and updateObserverFx see the same shape. When the user didn't
@@ -440,23 +484,32 @@ export function createBaseQuery<
     target: updateObserverFx,
   })
 
-  // Single effect: tear down subscription + destroy + clear $observer.
-  // Doing all three in one effect avoids ordering ambiguity vs. separate
-  // events that all sample from `unmounted`.
+  // Reference-counted teardown. Each unmounted() decrements; only the last one
+  // (next === 0) tears down the subscription, destroys the observer, and clears
+  // $observer. unmounted() at count 0 is a safe no-op (next floors at 0 and the
+  // observer is already null). Mirrors createQueries.unmountFx.
   const observerDestroyed = createEvent<void>()
   $observer.on(observerDestroyed, () => null)
 
   const unmountFx = attach({
-    source: $observer,
-    effect: (observer) => {
-      if (!observer) return
-      observerSubscriptions.get(observer)?.()
-      observerSubscriptions.delete(observer)
-      observer.destroy()
+    source: { observer: $observer, refCount: $refCount },
+    effect: ({ observer, refCount }) => {
+      const next = Math.max(0, refCount - 1)
+      if (next === 0 && observer) {
+        observerSubscriptions.get(observer)?.()
+        observerSubscriptions.delete(observer)
+        observer.destroy()
+      }
+      return next
     },
   })
   sample({ clock: unmounted, target: unmountFx })
-  sample({ clock: unmountFx.finally, target: observerDestroyed })
+  sample({ clock: unmountFx.doneData, target: refCountChanged })
+  sample({
+    clock: unmountFx.doneData,
+    filter: (next) => next === 0,
+    target: observerDestroyed,
+  })
 
   const refresh = createEvent<void>()
   const refreshFx = attach({

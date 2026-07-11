@@ -27,6 +27,7 @@ function Component() {
 - Subscribes to all relevant stores via `useUnit({ data, error, ... })`.
 - Calls `query.mounted()` in a `useEffect` on mount.
 - Calls `query.unmounted()` in cleanup on unmount.
+- `mounted()` / `unmounted()` are reference-counted per scope, so several components can share one module-level query safely — each mounts/unmounts independently and only the last unmount tears the observer down.
 - Returns a flat object — no extra wrappers.
 
 ## Type signature

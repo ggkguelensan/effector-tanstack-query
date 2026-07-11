@@ -84,6 +84,12 @@ export interface UseQueryResult<TData, TError = Error> {
 /**
  * Subscribes a React component to a query, automatically calling
  * `mounted()` on mount and `unmounted()` on cleanup.
+ *
+ * `mounted()` / `unmounted()` are **reference-counted per scope**, so several
+ * components can share one module-level query safely: each mounts and unmounts
+ * independently, the first mount creates the observer and only the last unmount
+ * (count → 0) tears down the subscription. A 2nd+ component mounting does not
+ * open a second subscription or trigger a refetch-on-mount.
  */
 export function useQuery<TData, TError = Error>(
   query: QueryResult<TData, TError>,
@@ -143,6 +149,12 @@ export interface UseMutationResult<TData, TError, TVariables> {
  * Subscribes a React component to a mutation, automatically calling
  * `start()` on mount and `unmounted()` on cleanup so the queryClient can
  * garbage-collect the mutation entry once no observers remain.
+ *
+ * `start()` / `unmounted()` are **reference-counted per scope**, so several
+ * components can share one module-level mutation: each starts and unmounts
+ * independently, and only the last unmount (count → 0) drops the observer
+ * subscription. A 2nd+ `start()` does not resubscribe, so a `finished.success`
+ * for a mutation already in flight is never swallowed.
  */
 export function useMutation<TData = unknown, TError = Error, TVariables = void>(
   mutation: MutationResult<TData, TError, TVariables>,
@@ -253,6 +265,10 @@ export interface UseInfiniteQueryResult<TData, TError> {
 /**
  * Subscribes a React component to an infinite query, with auto mount/unmount
  * lifecycle and bound `fetchNextPage` / `fetchPreviousPage` callbacks.
+ *
+ * Like {@link useQuery}, `mounted()` / `unmounted()` are reference-counted per
+ * scope: several components can share one module-level infinite query, and only
+ * the last unmount tears down the subscription.
  */
 export function useInfiniteQuery<TData, TError = Error, TPageParam = unknown>(
   query: InfiniteQueryResult<TData, TError, TPageParam>,

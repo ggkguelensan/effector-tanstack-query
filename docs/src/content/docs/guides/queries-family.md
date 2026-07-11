@@ -85,7 +85,7 @@ function UserList() {
 }
 ```
 
-`mounted()` / `unmounted()` are reference-counted — multiple consumers in the same scope share observers; the last unmount tears them down.
+`mounted()` / `unmounted()` are reference-counted — multiple consumers in the same scope share observers; the last unmount tears them down. This is the same reference-counted lifecycle used by every `createQuery` / `createInfiniteQuery` / `createMutation`, not a family-specific behavior.
 
 ## SSR
 

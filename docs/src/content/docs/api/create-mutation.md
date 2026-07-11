@@ -61,8 +61,8 @@ function createMutation<
 | `mutate`     | `EventCallable<TVariables>`                        | Trigger mutation                         |
 | `mutateWith` | `EventCallable<{ variables; onSuccess?; onError?; onSettled? }>` | Trigger with per-call callbacks |
 | `reset`      | `EventCallable<void>`                              | Reset to idle                            |
-| `start`      | `EventCallable<void>`                              | Subscribe observer                       |
-| `unmounted`  | `EventCallable<void>`                              | Unsubscribe (allows gcTime cleanup)      |
+| `start`      | `EventCallable<void>`                              | Register a consumer (reference-counted); first start subscribes the observer |
+| `unmounted`  | `EventCallable<void>`                              | Deregister a consumer; the last unmount unsubscribes (allows gcTime cleanup) |
 | `finished`   | `{ success: Event<{ params; result }>; failure: Event<{ params; error }> }` | Sample-friendly outcome events |
 | `$observer`  | `Store<MutationObserver \| null>`                  | Per-scope observer (created on `start()`) |
 | `$queryClient` | `Store<QueryClient \| null>`                     | Resolved client for this mutation        |
@@ -82,3 +82,5 @@ sample({
 ## Lifecycle
 
 `start()` subscribes the observer. `unmounted()` unsubscribes — required for `gcTime` to release the mutation entry from the `MutationCache`. The [`useMutation`](/effector-tanstack-query/react/use-mutation/) hook handles both.
+
+`start()` / `unmounted()` are **reference-counted per scope**, so multiple components can share one module-level mutation: the first `start()` subscribes, a 2nd+ `start()` only bumps the count and does **not** resubscribe (resubscribing would reset the observer's status baseline and could swallow a `finished.success` for a mutation already in flight), and only the last `unmounted()` (count → 0) drops the subscription. Unlike a query, the observer instance is kept (`$observer` stays populated) so the mutation's result state survives unmount. Extra `unmounted()` calls floor at zero.

@@ -61,6 +61,8 @@ const postsQuery = createInfiniteQuery({
 
 ## Return value (`InfiniteQueryResult<TData, TError, TPageParam>`)
 
+`mounted` / `unmounted` behave exactly as in `createQuery` — a [reference-counted mount lifecycle](/effector-tanstack-query/api/create-query/#reference-counted-mount-lifecycle) where multiple consumers in a scope share one observer and only the last unmount tears it down.
+
 In addition to the base `QueryResult` fields:
 
 | Field                       | Type                  | Description                  |

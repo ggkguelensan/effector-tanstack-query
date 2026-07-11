@@ -87,6 +87,16 @@ export function createMutation<
 
   const observerSubscriptions = new WeakMap<Observer, () => void>()
 
+  // Per-scope reference count of live consumers. The mutation is a module-level
+  // singleton shared across components; each calls start() on mount and
+  // unmounted() on cleanup. Reference counting keeps the single subscription
+  // alive until the LAST consumer unmounts. Runtime-only — MUST be
+  // serialize:'ignore' so an SSR-serialized count never leaks into a client
+  // scope via fork({ values }). Mirrors createBaseQuery.$refCount.
+  const $refCount = createStore(0, { serialize: 'ignore' })
+  const refCountChanged = createEvent<number>()
+  $refCount.on(refCountChanged, (_, next) => next)
+
   const start = createEvent<void>()
   const unmounted = createEvent<void>()
 
@@ -106,6 +116,17 @@ export function createMutation<
           qc,
           observerOptions,
         )
+
+      // A 2nd+ consumer calling start() while a subscription is already live.
+      // Do NOT resubscribe — resubscribing rebuilds the callback closure and
+      // resets its `prevStatus` baseline to 'idle'. If that happens while a
+      // mutation is in flight, the eventual pending → success transition is
+      // observed as idle → success, so the `prevStatus === 'pending'` guard
+      // never fires and finished.success is silently swallowed. One logical
+      // observer subscription per scope.
+      if (existingObserver && observerSubscriptions.has(observer)) {
+        return observer
+      }
 
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })
@@ -152,22 +173,37 @@ export function createMutation<
     },
   })
 
+  // A successful start increments the refcount. Gating on startFx.done — rather
+  // than incrementing on `start` and compensating a failed start — means a
+  // client-less start that throws simply never increments; no floor-at-0
+  // decrement needed. Mirrors createBaseQuery.
+  sample({
+    clock: startFx.done,
+    source: $refCount,
+    fn: (count) => count + 1,
+    target: refCountChanged,
+  })
   sample({ clock: start, target: startFx })
   sample({ clock: startFx.doneData, target: observerCreated })
 
   // Mutation observers (unlike query observers) live across mount cycles —
   // their data state survives unmount and can be observed again on re-start.
-  // Match that by keeping `$observer` populated; we only drop the
-  // subscription so listeners stop receiving updates after unmount.
+  // Match that by keeping `$observer` populated; we only drop the subscription
+  // once the LAST consumer unmounts (next === 0) so listeners stop receiving
+  // updates. unmounted() at count 0 is a safe no-op.
   const unmountFx = attach({
-    source: $observer,
-    effect: (observer) => {
-      if (!observer) return
-      observerSubscriptions.get(observer)?.()
-      observerSubscriptions.delete(observer)
+    source: { observer: $observer, refCount: $refCount },
+    effect: ({ observer, refCount }) => {
+      const next = Math.max(0, refCount - 1)
+      if (next === 0 && observer) {
+        observerSubscriptions.get(observer)?.()
+        observerSubscriptions.delete(observer)
+      }
+      return next
     },
   })
   sample({ clock: unmounted, target: unmountFx })
+  sample({ clock: unmountFx.doneData, target: refCountChanged })
 
   const mutate = createEvent<TVariables>()
 
