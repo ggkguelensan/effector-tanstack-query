@@ -20,6 +20,19 @@ export type StoreOrValue<T> = Store<T> | T
  * A query key where each element can be a plain value or an effector Store.
  * When any Store changes, the query is automatically re-executed with the new key.
  *
+ * Only a **top-level** array element may be a `Store` — that is the reactive
+ * form, unwrapped by `resolveKey` before the key is hashed. A `Store` (or any
+ * effector unit) nested inside a plain object/array element — e.g.
+ * `['todos', { page: $page }]` — is **not** supported: it survives untouched
+ * into TanStack's `hashKey`, which would crash on the store's cyclic structure
+ * and leave the query silently pending forever. To catch that, `resolveKey`
+ * **throws at factory-creation time** (via its `scanForNestedUnit` walk) naming
+ * the offending path (e.g. `queryKey[1].page`). Note the element type includes
+ * `object`, so a nested store is *not* rejected by the type system — the guard
+ * is the enforcement. Lift the store to the top level (`['todos', $page]`) or
+ * derive a plain value with `combine`/`map` before building the key. A
+ * top-level `Event`/`Effect` also throws — only `Store` is reactive here.
+ *
  * @example
  * const $userId = createStore(1)
  * queryKey: ['user', $userId, 'details']
@@ -131,8 +144,15 @@ export interface QueryResult<TData, TError = Error> {
    */
   prefetch: EventCallable<void>
   /**
-   * Initializes the query subscription. Must be called (or used with allSettled)
-   * before the query starts fetching.
+   * Registers one live consumer of the query. Call it (or drive it with
+   * `allSettled`) on every component mount before reading the stores. The query
+   * is a module-level singleton shared across components, so mounts are
+   * **reference-counted per scope**: the first `mounted()` creates the observer
+   * and subscribes; a 2nd+ `mounted()` only increments the count and re-syncs
+   * options — it does **not** open a second subscription and does **not**
+   * trigger a TanStack refetch-on-mount (one logical observer per scope). A
+   * mount that fails because the scope has no QueryClient does not inflate the
+   * count. Pair every `mounted()` with exactly one `unmounted()`.
    *
    * @example Without fork
    * query.mounted()
@@ -143,8 +163,12 @@ export interface QueryResult<TData, TError = Error> {
    */
   mounted: EventCallable<void>
   /**
-   * Tears down the query subscription and cancels any in-flight request.
-   * Call this when the consumer is destroyed (e.g. component unmount).
+   * Deregisters one consumer (the counterpart to `mounted()`). Decrements the
+   * per-scope reference count; only the **last** unmount (count → 0) tears down
+   * the subscription, cancels any in-flight request, and destroys the observer.
+   * Earlier unmounts leave the query fully live for the remaining consumers.
+   * Calling it more times than `mounted()` floors at zero — a stray or extra
+   * `unmounted()` is a safe no-op.
    */
   unmounted: EventCallable<void>
   /**
@@ -247,7 +271,9 @@ export interface InfiniteQueryResult<
   refresh: EventCallable<void>
   /** See {@link QueryResult.prefetch}. Uses `fetchInfiniteQuery` under the hood. */
   prefetch: EventCallable<void>
+  /** Reference-counted per scope. See {@link QueryResult.mounted}. */
   mounted: EventCallable<void>
+  /** Reference-counted per scope. See {@link QueryResult.unmounted}. */
   unmounted: EventCallable<void>
   /** See {@link QueryResult.$observer}. */
   $observer: Store<
@@ -317,14 +343,25 @@ export interface MutationResult<
   /** Resets the mutation state back to idle */
   reset: EventCallable<void>
   /**
-   * Initializes the mutation observer subscription.
-   * Must be called before mutate to ensure stores receive updates.
+   * Registers one live consumer of the mutation and ensures the observer
+   * subscription exists. Must be called before `mutate` so the stores receive
+   * updates. The mutation is a module-level singleton, so starts are
+   * **reference-counted per scope**: the first `start()` creates the observer
+   * and subscribes; a 2nd+ `start()` only increments the count and does **not**
+   * resubscribe — resubscribing would reset the observer's status baseline and
+   * could swallow a `finished.success` for a mutation that is already in flight.
+   * A start that fails because the scope has no QueryClient does not inflate the
+   * count. Pair every `start()` with exactly one `unmounted()`.
    */
   start: EventCallable<void>
   /**
-   * Tears down the observer subscription. Call this when the consumer is
-   * destroyed (e.g. component unmount) so the queryClient can gc the
-   * mutation entry.
+   * Deregisters one consumer (the counterpart to `start()`). Decrements the
+   * per-scope reference count; only the **last** unmount (count → 0) drops the
+   * observer subscription so listeners stop receiving updates. Unlike a query,
+   * the observer instance itself is kept (`$observer` stays populated) — a
+   * mutation's result state survives unmount and can be observed again on a
+   * later `start()`. Calling it more times than `start()` floors at zero — a
+   * stray `unmounted()` is a safe no-op.
    */
   unmounted: EventCallable<void>
   /**
@@ -374,6 +411,15 @@ export interface CreateQueriesItemOptions<
     QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
     'queryKey' | 'enabled'
   > {
+  /**
+   * The per-item query key, built at runtime by `query(item)`. Because it is
+   * produced dynamically (not at factory-creation time), a nested effector unit
+   * here cannot be caught by the synchronous `resolveKey` guard the static
+   * factories use. Instead `createQueries` runs the same scan right before
+   * `hashKey` and emits a loud DEV-only `console.error` naming the offending
+   * path (e.g. `queryKey[1].page`); the check is skipped entirely in
+   * production. Derive a plain value (`combine`/`map`) before returning the key.
+   */
   queryKey: TQueryKey
   enabled?: boolean
 }

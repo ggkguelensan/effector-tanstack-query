@@ -39,6 +39,8 @@ type EffectorQueryKey = ReadonlyArray<
 >
 ```
 
+Only a **top-level** array element may be a `Store` — that is the reactive form, unwrapped before the key is hashed. A `Store` nested inside a plain object or array element (e.g. `['todos', { page: $page }]`) is **not** supported and **throws at factory-creation time**, naming the offending path (`queryKey[1].page`). The element type includes `object`, so TypeScript does not reject it — the runtime guard does. Lift the store to the top level (`['todos', $page]`) or derive a plain value with `combine` / `map` first. A top-level `Event` / `Effect` also throws — only `Store` is reactive here.
+
 ## Cancellation
 
 `queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` (or any abortable API) and in-flight requests are cancelled automatically on key change, `unmounted()`, or a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event — no extra wiring.
@@ -65,8 +67,8 @@ const userQuery = createQuery({
 | `$isError`           | `Store<boolean>`                              | Failed                                   |
 | `$isPlaceholderData` | `Store<boolean>`                              | Showing placeholder                      |
 | `$fetchStatus`       | `Store<'fetching' \| 'paused' \| 'idle'>`     | Underlying fetch status                  |
-| `mounted`            | `EventCallable<void>`                         | Subscribe observer                       |
-| `unmounted`          | `EventCallable<void>`                         | Unsubscribe + cancel inflight            |
+| `mounted`            | `EventCallable<void>`                         | Register a consumer (reference-counted); first mount subscribes the observer |
+| `unmounted`          | `EventCallable<void>`                         | Deregister a consumer; only the last unmount unsubscribes + cancels inflight |
 | `refresh`            | `EventCallable<void>`                         | Invalidate + refetch                     |
 | `prefetch`           | `EventCallable<void>`                         | `queryClient.fetchQuery` + **awaits**; for SSR / route loaders |
 | `$observer`          | `Store<QueryObserver<TData, TError> \| null>` | Per-scope observer (created on `mounted()`) |
@@ -134,6 +136,10 @@ await allSettled(userQuery.mounted, { scope })   // dispatches into $data, $stat
 ```
 
 `prefetch` is a no-op when `enabled` is `false`.
+
+## Reference-counted mount lifecycle
+
+`mounted()` / `unmounted()` are **reference-counted per scope**. The query is a module-level singleton shared across components, so multiple consumers in the same scope share one observer: the first `mounted()` creates the observer and subscribes, a 2nd+ `mounted()` only bumps the count (it does **not** open a second subscription and does **not** trigger a refetch-on-mount), and only the **last** `unmounted()` (count → 0) tears down the subscription, cancels any in-flight request, and destroys the observer. Extra `unmounted()` calls floor at zero — a stray unmount is a safe no-op. Pair every `mounted()` with exactly one `unmounted()`. The count is per-scope and excluded from `serialize(scope)`.
 
 ## Generic inference
 

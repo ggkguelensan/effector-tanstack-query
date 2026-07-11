@@ -25,6 +25,8 @@ Mixing stores and primitives is supported:
 queryKey: ['posts', 42, $section, { sort: 'asc' }]
 ```
 
+A store must be a **top-level** array element. A store nested inside an object or array element (e.g. `['posts', { section: $section }]`) is not supported and throws at factory-creation time, naming the path — lift it to the top level (`['posts', $section]`) or derive a plain value with `combine` / `map` first.
+
 ## Enabled flag
 
 `enabled` controls whether the query runs. It accepts a boolean OR a `Store<boolean>`:
@@ -215,5 +217,7 @@ userQuery.mounted()
 // ...
 userQuery.unmounted() // cancels in-flight, releases observer
 ```
+
+`mounted()` / `unmounted()` are **reference-counted per scope**: the query is a module-level singleton, so multiple consumers share one observer. The first `mounted()` subscribes; a 2nd+ only bumps the count (no second subscription, no refetch-on-mount); only the last `unmounted()` (count → 0) tears the observer down. Extra `unmounted()` calls floor at zero. Pair every `mounted()` with exactly one `unmounted()`.
 
 In React, the [`useQuery`](/effector-tanstack-query/react/use-query/) hook calls these for you.

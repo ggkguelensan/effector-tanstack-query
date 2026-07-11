@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Both `@effector-tanstack-query/core` and `@effector-tanstack-query/react` share this changelog. Per-release version numbers below indicate which package shipped which change; entries for a single package mention the other staying at its previous version.
 
+## [Unreleased]
+
+Both fixes land in `@effector-tanstack-query/core`; `@effector-tanstack-query/react` stays at its previous version (only picks up the behaviour through the shared lifecycle and gets doc updates).
+
+### Fixed
+
+- **Reference-counted mount lifecycle.** `mounted()` / `unmounted()` on a query or infinite query — and `start()` / `unmounted()` on a mutation — are now reference-counted per scope. When several components share one module-level factory, each mounts and unmounts independently: the first mount creates and subscribes the observer, a 2nd+ mount only increments the count (no second subscription, no refetch-on-mount, and for a mutation no resubscribe that could swallow an in-flight `finished.success`), and only the **last** unmount (count → 0) tears the subscription down, cancels any in-flight request, and destroys the observer. Previously a second consumer's `unmounted()` could tear down the observer while other consumers were still live. Extra `unmounted()` calls floor at zero (a stray unmount is a safe no-op), and the count is per-scope and excluded from `serialize(scope)`.
+
+- **Fail-fast `queryKey` validation for nested effector units (DX).** A `queryKey` element with an effector unit nested inside a plain object or array — e.g. `['todos', { page: $page }]` — previously survived untouched into TanStack's `hashKey`, whose `JSON.stringify` crashed on the store's cyclic structure deep inside the mount effect. That rejection was swallowed, so the query hung `pending` forever with nothing logged. The static factories (`createQuery`, `createInfiniteQuery`, `createInvalidate`, `createCancel` / `createRemove` / `createReset`) now throw a clear, path-naming error at factory-creation time (e.g. `queryKey[1].page is an effector Store`). A top-level `Event` / `Effect` also throws — only a top-level `Store` is a valid reactive element. `createQueries`, whose per-item keys are built at runtime, emits a loud DEV-only `console.error` naming the path before `hashKey` would crash (skipped entirely in production). Lift the store to the top level (`['todos', $page]`) or derive a plain value with `combine` / `map`.
+
 ## [1.0.0-rc.1] — 2026-06-04
 
 First release candidate for the upcoming stable 1.0. No API changes vs `0.5.0` — this RC freezes the public surface and asks for real-world validation before the stable cut.
