@@ -10,6 +10,7 @@ import { QueryObserver, hashKey } from '@tanstack/query-core'
 import type { QueryClient } from '@tanstack/query-core'
 import { $queryClient as $globalQueryClient } from './queryClient'
 import { sidConfig, warnMissingName } from './createBaseQuery'
+import { assertNoUnitsInKey } from './resolve'
 import type {
   CreateQueriesOptions,
   QueriesResult,
@@ -22,6 +23,47 @@ interface ObserverEntry<TData, TError> {
 }
 
 const EMPTY_ITEMS: ReadonlyArray<QueryItemState<unknown, unknown, unknown>> = []
+
+const LIB = '[@tanstack/query-effector]'
+
+/**
+ * DEV-only guard for `createQueries`. Unlike `createQuery`, the per-item
+ * `queryKey` is produced at runtime by `query(item)`, so it can't be
+ * validated at factory-creation time. This runs {@link assertNoUnitsInKey}
+ * right before *every* `hashKey` call, and — on a hit — logs a loud
+ * `console.error` (with the offending source item) so the otherwise silent
+ * `hashKey` failure becomes discoverable.
+ *
+ * `assertNoUnitsInKey` rejects even a top-level store: the static factories
+ * route their key through `resolveKey`, which unwraps a top-level store before
+ * hashing, so a top-level store is valid there. `createQueries` never uses
+ * `resolveKey` — it hashes each key as-is — so a top-level store is NOT
+ * unwrapped and crashes `hashKey` exactly like a nested one; it must be flagged
+ * too.
+ *
+ * Skipped in production (same env guard as `warnMissingName`) so the scan
+ * never touches the production hot path. This means the failure stays silent
+ * in production — a deliberate trade of one-time discoverability against a
+ * per-source-change runtime scan, unlike the static factories whose guard runs
+ * unconditionally but only once, at factory-creation time.
+ */
+function warnUnitsInQueryKey(
+  item: unknown,
+  queryKey: ReadonlyArray<unknown>,
+): void {
+  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production') {
+    return
+  }
+  try {
+    assertNoUnitsInKey(queryKey)
+  } catch (err) {
+    // The caught error already names the path and explains the crash; pass the
+    // offending source item as a trailing arg (throw-proof — console.error
+    // renders it, no bespoke serializer needed).
+    // eslint-disable-next-line no-console
+    console.error(`${LIB} createQueries: ${(err as Error).message}`, item)
+  }
+}
 
 /**
  * Reactive family of parallel queries indexed by a source store. See
@@ -137,6 +179,10 @@ export function createQueries<
   ): ReadonlyArray<QueryItemState<TItem, TData, TError>> {
     return src.map((item) => {
       const opts = query(item)
+      // DEV-only: surface a unit-bearing queryKey before hashKey runs. This
+      // path is reachable independently of diffSource (recomputeFx fires it
+      // when a sibling observer emits while a bad-key item is still in source).
+      warnUnitsInQueryKey(item, opts.queryKey as ReadonlyArray<unknown>)
       const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
       const entry = observers.get(hash)
       if (!entry) return defaultItemState(item)
@@ -184,6 +230,10 @@ export function createQueries<
 
     for (const item of src) {
       const opts = query(item)
+      // DEV-only: surface a unit-bearing queryKey with a loud console.error
+      // before hashKey inevitably crashes on the cyclic store (top-level or
+      // nested), or silently mis-hashes an Event/Effect. No-op in prod.
+      warnUnitsInQueryKey(item, opts.queryKey as ReadonlyArray<unknown>)
       const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
       keep.add(hash)
       let entry = next.get(hash)
@@ -329,6 +379,9 @@ export function createQueries<
       item: TItem,
     ) => {
       const opts = query(item)
+      // DEV-only: same nested/top-level-unit diagnostic as the sync path,
+      // since refreshOne(item) hashes the runtime key directly too.
+      warnUnitsInQueryKey(item, opts.queryKey as ReadonlyArray<unknown>)
       const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
       const entry = observers.get(hash)
       if (!entry) return
@@ -347,6 +400,9 @@ export function createQueries<
       await Promise.all(
         currentSource.map((item) => {
           const opts = query(item)
+          // DEV-only: qc.fetchQuery hashes the key internally, so the same
+          // unit-bearing-key diagnostic applies on the SSR/prefetch path.
+          warnUnitsInQueryKey(item, opts.queryKey as ReadonlyArray<unknown>)
           if (opts.enabled === false) return Promise.resolve()
           return qc
             .fetchQuery({

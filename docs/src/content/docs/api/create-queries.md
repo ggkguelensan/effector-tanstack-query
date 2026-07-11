@@ -38,6 +38,8 @@ const usersFamily = createQueries({
 
 `query(item).enabled` is a plain `boolean` — not a `Store`. Reactivity is already covered by the `source` store: the callback re-runs whenever `source` updates.
 
+`query(item)` must return a plain `queryKey` — no effector units nested inside it. Because the key is built at runtime (not at factory-creation time like `createQuery`), a nested unit can't be caught synchronously; instead the family emits a loud DEV-only `console.error` naming the path (e.g. `queryKey[1].page`) right before it would crash in `hashKey`. Derive a plain value with `combine` / `map` before returning the key. The check is skipped entirely in production.
+
 ## Return value (`QueriesResult<TItem, TData, TError>`)
 
 | Field         | Type                                                                      | Description                                                            |

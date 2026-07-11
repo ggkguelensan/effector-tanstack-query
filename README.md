@@ -14,8 +14,9 @@ A thin adapter that exposes TanStack Query state and operations as effector
 units. It doesn't reimplement the cache, dedup, or revalidation — it forwards
 them. Every observer field (`data`, `status`, `isPending`, …) becomes a
 `Store<T>`, every imperative action (`refetch`, `fetchNextPage`, `mutate`, …)
-becomes an `EventCallable`. A `Store` placed inside `queryKey` triggers
-automatic refetch on change. SSR works via the two persistence layers —
+becomes an `EventCallable`. A `Store` placed at the top level of `queryKey`
+triggers automatic refetch on change (a store nested inside an object/array key
+element is unsupported and throws). SSR works via the two persistence layers —
 `dehydrate` + `<HydrationBoundary>` for the queryClient cache and
 `serialize(scope)` / `fork({ values })` for the effector graph.
 
