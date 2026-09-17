@@ -106,6 +106,10 @@ export default defineConfig({
             { label: 'useIsFetching', slug: 'react/use-is-fetching' },
             { label: 'useIsMutating', slug: 'react/use-is-mutating' },
             { label: 'HydrationBoundary', slug: 'react/hydration-boundary' },
+            {
+              label: 'QueryClientCompatProvider',
+              slug: 'react/query-client-compat-provider',
+            },
           ],
         },
         {
