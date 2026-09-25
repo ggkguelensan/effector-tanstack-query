@@ -36,3 +36,6 @@ export type {
   QueryResult,
   StoreOrValue,
 } from './types'
+
+export { queryOptions } from './queryOptions'
+export { infiniteQueryOptions } from './infiniteQueryOptions'

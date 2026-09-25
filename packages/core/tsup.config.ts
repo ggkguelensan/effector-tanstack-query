@@ -8,6 +8,8 @@ export default defineConfig({
   // imports in dist/index.js with no sibling file to resolve them.
   entry: [
     'src/index.ts',
+    'src/queryOptions.ts',
+    'src/infiniteQueryOptions.ts',
     'src/createQuery.ts',
     'src/createInfiniteQuery.ts',
     'src/createQueries.ts',

@@ -1,7 +1,7 @@
 {
   "name": "@effector-tanstack-query/core",
   "version": "1.0.1",
-  "description": "Effector bindings for TanStack Query — core factories (createQuery, createMutation, createInfiniteQuery, createQueries) plus invalidate / cancel / remove / reset cache actions",
+  "description": "Effector bindings for TanStack Query \u2014 core factories (createQuery, createMutation, createInfiniteQuery, createQueries) plus invalidate / cancel / remove / reset cache actions",
   "license": "MIT",
   "author": "Ilya Agarkov <ilya.al.ag@gmail.com>",
   "repository": {
@@ -40,7 +40,8 @@
   "files": [
     "dist",
     "src",
-    "!src/__tests__"
+    "!src/__tests__",
+    "LICENSE.TanStack"
   ],
   "sideEffects": false,
   "scripts": {
@@ -58,7 +59,7 @@
     "publint": "^0.3.21"
   },
   "peerDependencies": {
-    "@tanstack/query-core": "^5.0.0",
+    "@tanstack/query-core": "^5.100.10",
     "effector": ">=23.0.0"
   }
 }
