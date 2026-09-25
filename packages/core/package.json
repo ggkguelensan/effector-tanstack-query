@@ -1,7 +1,7 @@
 {
   "name": "@effector-tanstack-query/core",
   "version": "1.0.1",
-  "description": "Effector bindings for TanStack Query \u2014 core factories (createQuery, createMutation, createInfiniteQuery, createQueries) plus invalidate / cancel / remove / reset cache actions",
+  "description": "Effector bindings for TanStack Query — core factories (createQuery, createMutation, createInfiniteQuery, createQueries) plus invalidate / cancel / remove / reset cache actions",
   "license": "MIT",
   "author": "Ilya Agarkov <ilya.al.ag@gmail.com>",
   "repository": {
@@ -50,7 +50,7 @@
     "clean": "rm -rf ./dist ./coverage",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:types": "tsc --noEmit",
+    "test:types": "tsc --noEmit && tsc -p tsconfig.registered.json",
     "check:publish": "publint && attw --pack ."
   },
   "devDependencies": {

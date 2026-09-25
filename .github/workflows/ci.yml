@@ -11,6 +11,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  factory-contracts:
+    name: Factory contracts (TS ${{ matrix.typescript }}, Query 5.100.10)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        typescript: ['5.7.3', '5.9.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Pin the supported Query floor and TypeScript version
+        env:
+          TYPESCRIPT_VERSION: ${{ matrix.typescript }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+          pkg.pnpm ??= {}
+          pkg.pnpm.overrides = {
+            ...pkg.pnpm.overrides,
+            typescript: process.env.TYPESCRIPT_VERSION,
+            '@tanstack/query-core': '5.100.10',
+            '@tanstack/react-query': '5.100.10',
+          }
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')
+          JS
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm test:types
+      - run: pnpm test
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
