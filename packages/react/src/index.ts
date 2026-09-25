@@ -408,7 +408,7 @@ function useQueriesFamily<TItem, TData, TError>(
 // is suspended — so on the very first render the scope's `$observer` may be
 // null. To get synchronous access to the observer's promise during suspense,
 // we construct a transient observer via the factory's hidden
-// `__createObserver(qc, { queryKey, enabled })` helper. The transient observer
+// `__createObserver(qc, options)` helper. The transient observer
 // reads from / writes to the same queryClient cache as the eventual scope
 // observer (which is created when mountFx runs after useEffect commits).
 //
@@ -428,11 +428,17 @@ function useObserverRerender(
 interface SuspenseFactory<TObserver> {
   __createObserver(
     qc: import('@tanstack/query-core').QueryClient,
-    options: import('@tanstack/query-core').QueryObserverOptions<any, any, any, any, any>,
+    options: import('@tanstack/query-core').QueryObserverOptions<
+      any,
+      any,
+      any,
+      any,
+      any
+    >,
   ): TObserver
-  __resolvedKey: import('effector').Store<unknown>
-  __enabled: import('effector').Store<boolean>
-  __options: import('effector').Store<import('@tanstack/query-core').QueryObserverOptions<any, any, any, any, any>>
+  __options: import('effector').Store<
+    import('@tanstack/query-core').QueryObserverOptions<any, any, any, any, any>
+  >
 }
 
 export interface UseSuspenseQueryResult<TData, TError = Error> {
@@ -845,7 +851,10 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
       if (observersInScope[i]) return null
       const qc = qcs[i]
       if (!qc) return null
-      return (q as unknown as SuspenseFactory<any>).__createObserver(qc, resolvedOptions[i]!)
+      return (q as unknown as SuspenseFactory<any>).__createObserver(
+        qc,
+        resolvedOptions[i]!,
+      )
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queries, ...observersInScope, ...qcs, ...resolvedOptions])
@@ -865,9 +874,9 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   }
   const observers = queries.map(
     (_, i) =>
-      ((observersInScope[i] ?? transients[i]) ?? null) as
-        | SuspendableObserver
-        | null,
+      (observersInScope[i] ??
+        transients[i] ??
+        null) as SuspendableObserver | null,
   )
 
   // Subscribe to every live observer in one effect so the consumer
