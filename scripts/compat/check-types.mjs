@@ -20,6 +20,7 @@ try {
     ['.baseline/dist/index.d.ts', 'inline.types.ts'],
     ['../../packages/core/dist/index.d.ts', 'inline.types.ts'],
     ['../../packages/core/dist/index.d.ts', 'factory.types.ts'],
+    ['../../packages/core/dist/index.d.ts', 'public-types.types.ts'],
     ['.baseline/dist/index.d.ts', 'infinite-inference.types.ts'],
     ['../../packages/core/dist/index.d.ts', 'infinite-inference.types.ts'],
   ]) {
@@ -31,6 +32,9 @@ try {
           noEmit: true,
           paths: {
             '@subject/core': [resolve('scripts/compat', subject)],
+            '@baseline/core': [
+              resolve('scripts/compat/.baseline/dist/index.d.ts'),
+            ],
             '@tanstack/query-core': [coreTypes],
           },
         },

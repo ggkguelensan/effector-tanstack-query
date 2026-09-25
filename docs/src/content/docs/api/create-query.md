@@ -109,7 +109,7 @@ type EffectorQueryKey = ReactiveKey<QueryKey>
 
 ## Cancellation
 
-`queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` (or any abortable API) and in-flight requests are cancelled automatically on key change, `unmounted()`, or a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event — no extra wiring.
+`queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` (or any abortable API) and in-flight requests are cancelled automatically when a key change or the last matching `unmounted()` removes the final observer of that cache entry, or on a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event — no extra wiring.
 
 ```ts
 const userQuery = createQuery({
@@ -143,14 +143,14 @@ const userQuery = createQuery({
 
 ## Lifecycle events
 
-`finished.success` and `finished.failure` let you react to **fetch completion**
-from module-level `sample` wiring — no polling on `$status`, no manual diffing.
-They mirror `createMutation`'s `finished`.
+`finished.success` and `finished.failure` let you react to observed cache
+updates from module-level `sample` wiring. They use the observer result
+timestamps; they are not an exactly-once event stream for network requests.
 
 | Event              | Fires when…                                                            | Payload  |
 | ------------------ | --------------------------------------------------------------------- | -------- |
-| `finished.success` | A fetch resolves successfully — fresh fetch, `refresh()`, reactive key change, or a cross-scope `setQueryData` | `TData` (post-`select`) |
-| `finished.failure` | A fetch fails                                                         | `TError` |
+| `finished.success` | An observer notification has success status, a newer `dataUpdatedAt`, and non-placeholder data | `TData` (post-`select`) |
+| `finished.failure` | An observer notification has error status and a newer `errorUpdatedAt` | `TError` |
 
 ```ts
 const userQuery = createQuery({
@@ -159,13 +159,13 @@ const userQuery = createQuery({
   queryFn: ({ queryKey }) => fetchUser(queryKey[1]),
 })
 
-// After every successful fetch, load dependent data.
+// Load dependent data after an observed success.
 sample({
   clock: userQuery.finished.success,
   target: loadSettings,
 })
 
-// Toast on every failure.
+// Toast on an observed failure.
 sample({
   clock: userQuery.finished.failure,
   fn: (err) => `Failed: ${err.message}`,
@@ -174,18 +174,26 @@ sample({
 ```
 
 The payload is the data / error directly (not `{ params, result }` like a
-mutation) — a query has no per-call variations, and its key is resolved by the
-factory. If you need the resolved key alongside the data, add a second `sample`
-that reads `$status` or the internal `__resolvedKey` store.
+mutation). Success carries the selected data; the QueryClient cache retains
+the original queryFn data.
 
-**Baseline — what does _not_ fire.** On the first observation in a scope (e.g.
-`mounted()` over SSR-hydrated cache data) neither event fires. The events track
-**new** fetches, not the initial observability of already-cached data —
-otherwise every page load would re-fire `success` for hydrated data. Each fork
-scope tracks its own baseline independently. Placeholder data
-(`$isPlaceholderData`) never fires `success` either; only a real resolution
-does. On the server, `prefetch` populates the cache without an observer
-subscription, so no lifecycle events fire there.
+**Baseline.** The first observation after each mount establishes the timestamp
+baseline without emitting either event. This includes SSR-hydrated cache and
+initial data. Placeholder data never emits `success`. Each observer in each
+fork tracks its own baseline.
+
+**Cache updates and notification limits.** Fetches, `refresh()`, pagination and
+`setQueryData` can emit these events, including updates initiated elsewhere
+through a shared QueryClient. A timestamp must advance beyond the last recorded
+one: two resolutions in the same millisecond do not necessarily produce two
+events. In the inline form, `notifyOnChangeProps` also controls which observer
+notifications reach the adapter, so it can suppress store updates and events.
+For example, `['data']` can hide fetching transitions and a refetch that returns
+structurally equal data.
+
+`prefetch` without a mounted observer only populates the cache and emits no
+lifecycle events. If a model is already observing that cache, it can receive
+the resulting update through its subscription.
 
 ## `prefetch` vs `mounted`
 

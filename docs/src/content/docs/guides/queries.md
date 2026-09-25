@@ -201,7 +201,7 @@ userQuery.refresh() // invalidates the query and refetches in the background
 ## Reacting to fetch completion
 
 `finished.success` / `finished.failure` are events you can drive `sample` from —
-react to every completed fetch without watching `$status` by hand.
+react to observed cache updates without watching `$status` by hand.
 
 ```ts
 const userQuery = createQuery({
@@ -210,13 +210,13 @@ const userQuery = createQuery({
   queryFn: ({ queryKey }) => fetchUser(queryKey[1]),
 })
 
-// Chain a dependent load off each successful fetch.
+// Chain a dependent load off an observed success.
 sample({
   clock: userQuery.finished.success,
   target: loadSettings,
 })
 
-// Surface every failure.
+// Surface an observed failure.
 sample({
   clock: userQuery.finished.failure,
   fn: (err) => `Failed: ${err.message}`,
@@ -225,16 +225,24 @@ sample({
 ```
 
 `finished.success` carries the post-`select` data; `finished.failure` carries the
-error. They fire on fresh fetches, `refresh()`, and reactive key changes — but
-**not** for the baseline state seen on mount (e.g. SSR-hydrated cache). See the
+error. They can fire after fetches, `refresh()`, or `setQueryData`, when the
+observer reports an advancing result timestamp. They do **not** fire for the
+baseline state seen on mount (e.g. SSR-hydrated cache), and do not guarantee one
+event per request: notification filters and unchanged timestamps can suppress
+events. See the
 [`createQuery` lifecycle events reference](/effector-tanstack-query/api/create-query/#lifecycle-events)
 for the full semantics.
 
 ## Lifecycle
 
-You must call `mounted()` (or use `useQuery(query)` in React) for the observer to subscribe. `unmounted()` tears it down.
+You must call `mounted()` (or use `useQuery(query)` in React) for the observer to subscribe. The last matching `unmounted()` tears it down.
 
 The observer is shared per Scope and reference-counted: every `mounted()` is one owner, and only the last matching `unmounted()` releases the observer. Several components and a feature-level `sample` can drive the same query independently — unmounting one of them doesn't stop updates for the rest. Extra `unmounted()` calls are a safe no-op.
+
+Forks have separate observers and Effector state. Cache isolation depends on the
+QueryClient: give each server request its own client. Forks sharing one client
+also share its cache and in-flight request deduplication. After the last unmount,
+the model retains its last store values but stops observing cache updates.
 
 ```ts
 userQuery.mounted()

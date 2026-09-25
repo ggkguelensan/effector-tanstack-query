@@ -68,7 +68,7 @@ The inline form remains supported with its existing generic order.
 
 ## Cancellation
 
-Like `createQuery`, the page `queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` and in-flight page requests cancel automatically on key change, `unmounted()`, or a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event.
+Like `createQuery`, the page `queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` and in-flight page requests cancel automatically when a key change or the last matching `unmounted()` removes the final observer of that cache entry, or on a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event.
 
 ```ts
 const postsQuery = createInfiniteQuery({
@@ -101,8 +101,10 @@ Plus `finished` — `{ success: Event<TData>; failure: Event<TError> }`, the
 lifecycle events shared with `createQuery` (see
 [Lifecycle events](/effector-tanstack-query/api/create-query/#lifecycle-events)).
 `finished.success` carries the full `TData` (the `InfiniteData` page set, or the
-`select` result) and fires on each completed fetch — including `fetchNextPage` /
-`fetchPreviousPage` resolutions, which advance the data timestamp.
+`select` result). Page fetches and cache writes can emit it when an observer
+notification advances the data timestamp. The same baseline, timestamp and
+notification-filter limits as `createQuery` apply; it is not guaranteed to fire
+once per page request.
 
 ```ts
 sample({

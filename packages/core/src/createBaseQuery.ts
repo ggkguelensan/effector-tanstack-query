@@ -33,14 +33,14 @@ export interface BaseObserverResult<TData, TError> {
   fetchStatus: FetchStatus
   isPlaceholderData: boolean
   /**
-   * Timestamp (ms) of the last successful data resolution. Monotonically
-   * increases per successful fetch — used to detect newly-finished fetches
-   * for the `finished.success` lifecycle event.
+   * Timestamp (ms) of the last successful cache data update. Advancing values
+   * in observer notifications drive `finished.success`; cache writes count
+   * too, and multiple resolutions can share one millisecond.
    */
   dataUpdatedAt: number
   /**
-   * Timestamp (ms) of the last error. Increments per failed fetch — used to
-   * detect newly-finished failures for the `finished.failure` lifecycle event.
+   * Timestamp (ms) of the last error. Advancing values in observer
+   * notifications drive `finished.failure`.
    */
   errorUpdatedAt: number
 }
@@ -76,11 +76,11 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
   /**
-   * Lifecycle events for `sample`-driven reactions to fetch completion.
-   * `success` fires with the (post-`select`) data on every newly-finished
-   * successful fetch; `failure` fires with the error on every failed fetch.
-   * Neither fires for the baseline state observed on mount (e.g. hydrated
-   * cache) — they track *new* fetches, not initial observability.
+   * Lifecycle events for observed cache updates with advancing timestamps.
+   * `success` carries post-select data; `failure` carries the error.
+   * The mount baseline and placeholder data do not emit success. Notification
+   * filters and unchanged timestamps can suppress events; these are not
+   * guaranteed once per network request.
    */
   finished: {
     success: Event<TData>
@@ -284,8 +284,8 @@ export function createBaseQuery<
       // notification (the immediate getCurrentResult() emit below, or the
       // observer's first callback) establishes the baseline without firing —
       // so hydrated cache data on mount doesn't dispatch `finished.success`.
-      // Subsequent increments of dataUpdatedAt / errorUpdatedAt are genuine
-      // new fetches and do fire.
+      // Subsequent timestamp advances can emit, including cache writes.
+      // Notification filters and same-millisecond results can suppress events.
       let lastDataUpdatedAt = -1
       let lastErrorUpdatedAt = -1
 
@@ -312,7 +312,7 @@ export function createBaseQuery<
           lastDataUpdatedAt = result.dataUpdatedAt
           lastErrorUpdatedAt = result.errorUpdatedAt
         } else {
-          // A newly-resolved successful fetch. Guard against placeholderData,
+          // An observed successful cache update. Guard against placeholderData,
           // which carries status 'success' but never advances dataUpdatedAt.
           if (
             result.dataUpdatedAt > lastDataUpdatedAt &&
