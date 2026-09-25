@@ -1,10 +1,4 @@
-import {
-  attach,
-  createEvent,
-  createStore,
-  sample,
-  scopeBind,
-} from 'effector'
+import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
 import type { Event, EventCallable, Store } from 'effector'
 import type {
   FetchStatus,
@@ -174,11 +168,17 @@ export function createBaseQuery<
 >(
   explicitClient: QueryClient | null,
   options: BaseQueryOptions,
-  config: CreateBaseQueryConfig<TData, TError, TResult, TObserver, TExtraStores>,
+  config: CreateBaseQueryConfig<
+    TData,
+    TError,
+    TResult,
+    TObserver,
+    TExtraStores
+  >,
 ): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
   const { name, $options } = options
-  const $resolvedKey = $options.map(options => options.queryKey)
-  const $enabled = $options.map(options => options.enabled)
+  const $resolvedKey = $options.map((options) => options.queryKey)
+  const $enabled = $options.map((options) => options.enabled)
 
   // If an explicit client is passed, the factory is locked to it. fork()
   // values cannot override the captured value because $effectiveClient is a
@@ -266,8 +266,7 @@ export function createBaseQuery<
       }
 
       const observer =
-        existingObserver ??
-        config.createObserver(qc, currentOptions)
+        existingObserver ?? config.createObserver(qc, currentOptions)
 
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })

@@ -4,11 +4,7 @@ export { createQueries } from './createQueries'
 export { createMutation } from './createMutation'
 export { createInvalidate } from './createInvalidate'
 export type { CreateInvalidateOptions } from './createInvalidate'
-export {
-  createCancel,
-  createRemove,
-  createReset,
-} from './createCacheAction'
+export { createCancel, createRemove, createReset } from './createCacheAction'
 export type {
   CacheActionOptions,
   CreateCancelOptions,
@@ -27,6 +23,10 @@ export type {
   CreateQueriesItemOptions,
   CreateQueriesOptions,
   CreateQueryOptions,
+  CreateQueryFactoryOptions,
+  CreateInfiniteQueryFactoryOptions,
+  OptionsSource,
+  SourceValue,
   EffectorQueryKey,
   InfiniteQueryResult,
   MutationResult,

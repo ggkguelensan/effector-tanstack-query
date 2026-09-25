@@ -1,15 +1,36 @@
 import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
-import type { QueryClient } from '@tanstack/query-core'
+import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
 import { resolveQueryOptions } from './resolve'
 import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
+  CreateQueryFactoryOptions,
+  OptionsSource,
   EffectorQueryKey,
   QueryResult,
 } from './types'
 
+export function createQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  const TQueryKey extends QueryKey = QueryKey,
+  const S extends OptionsSource = OptionsSource,
+>(
+  options: CreateQueryFactoryOptions<S, TQueryFnData, TError, TData, TQueryKey>,
+): QueryResult<TData, TError>
+export function createQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  const TQueryKey extends QueryKey = QueryKey,
+  const S extends OptionsSource = OptionsSource,
+>(
+  queryClient: QueryClient,
+  options: CreateQueryFactoryOptions<S, TQueryFnData, TError, TData, TQueryKey>,
+): QueryResult<TData, TError>
 export function createQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -35,15 +56,14 @@ export function createQuery<
 >(
   arg1:
     | QueryClient
-    | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  arg2?: CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+    | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>
+    | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>,
+  arg2?:
+    | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>
+    | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>,
 ): QueryResult<TData, TError> {
-  const [explicitClient, options] = parseQueryArgs<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey
-  >(arg1, arg2)
+  const explicitClient = arg2 === undefined ? null : (arg1 as QueryClient)
+  const options = arg2 ?? (arg1 as Exclude<typeof arg1, QueryClient>)
   const { name } = options
   if (!name) warnMissingName('createQuery')
   const $options = resolveQueryOptions(options)
@@ -57,8 +77,8 @@ export function createQuery<
     explicitClient,
     { $options, name },
     {
-      createObserver: (qc, options) => new QueryObserver<TQueryFnData, TError, TData>(qc, options),
-
+      createObserver: (qc, options) =>
+        new QueryObserver<TQueryFnData, TError, TData>(qc, options),
     },
   )
 
@@ -130,27 +150,4 @@ export function createQuery<
   })
 
   return result
-}
-
-function parseQueryArgs<
-  TQueryFnData,
-  TError,
-  TData,
-  TQueryKey extends EffectorQueryKey,
->(
-  arg1:
-    | QueryClient
-    | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  arg2?: CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-): [
-  QueryClient | null,
-  CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-] {
-  if (arg2 !== undefined) {
-    return [arg1 as QueryClient, arg2]
-  }
-  return [
-    null,
-    arg1 as CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  ]
 }

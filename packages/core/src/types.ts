@@ -1,5 +1,6 @@
 import type { Event, EventCallable, Store } from 'effector'
 import type {
+  DefaultError,
   FetchStatus,
   InfiniteData,
   InfiniteQueryObserver,
@@ -24,9 +25,10 @@ export type StoreOrValue<T> = Store<T> | T
  * const $userId = createStore(1)
  * queryKey: ['user', $userId, 'details']
  */
-export type EffectorQueryKey = ReadonlyArray<
-  StoreOrValue<string | number | bigint | boolean | null | undefined | object>
->
+type ReactiveKey<K extends QueryKey> = {
+  readonly [P in keyof K]: StoreOrValue<K[P]>
+}
+export type EffectorQueryKey = ReactiveKey<QueryKey>
 
 /**
  * Resolves a single `EffectorQueryKey` element to its runtime value type:
@@ -60,15 +62,17 @@ export interface CreateQueryOptions<
   TData = TQueryFnData,
   TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 > extends Omit<
-  QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryFnData,
-    ResolvedQueryKey<TQueryKey>
-  >,
-  'queryKey' | 'enabled' | 'refetchInterval'
-> {
+    QueryObserverOptions<
+      TQueryFnData,
+      TError,
+      TData,
+      TQueryFnData,
+      ResolvedQueryKey<TQueryKey>
+    >,
+    'queryKey' | 'enabled' | 'refetchInterval'
+  > {
+  source?: never
+  query?: never
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /**
@@ -193,15 +197,17 @@ export interface CreateInfiniteQueryOptions<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 > extends Omit<
-  InfiniteQueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    ResolvedQueryKey<TQueryKey>,
-    TPageParam
-  >,
-  'queryKey' | 'enabled' | 'refetchInterval'
-> {
+    InfiniteQueryObserverOptions<
+      TQueryFnData,
+      TError,
+      TData,
+      ResolvedQueryKey<TQueryKey>,
+      TPageParam
+    >,
+    'queryKey' | 'enabled' | 'refetchInterval'
+  > {
+  source?: never
+  query?: never
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /** See {@link CreateQueryOptions.refetchInterval}. */
@@ -250,9 +256,13 @@ export interface InfiniteQueryResult<
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
   /** See {@link QueryResult.$observer}. */
-  $observer: Store<
-    InfiniteQueryObserver<any, TError, TData, QueryKey, TPageParam> | null
-  >
+  $observer: Store<InfiniteQueryObserver<
+    any,
+    TError,
+    TData,
+    QueryKey,
+    TPageParam
+  > | null>
   /** See {@link QueryResult.$queryClient}. */
   $queryClient: Store<QueryClient | null>
   /** See {@link QueryResult.finished}. */
@@ -369,7 +379,7 @@ export interface CreateQueriesItemOptions<
   TQueryFnData,
   TError,
   TData,
-  TQueryKey extends ReadonlyArray<unknown>,
+  TQueryKey extends QueryKey,
 > extends Omit<
     QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
     'queryKey' | 'enabled'
@@ -383,7 +393,7 @@ export interface CreateQueriesOptions<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
-  TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
+  TQueryKey extends QueryKey = QueryKey,
 > {
   /**
    * Stable name used to derive the SID of the result `$items` store so
@@ -429,11 +439,7 @@ export interface CreateQueriesOptions<
     TError,
     TData
   >['refetchOnWindowFocus']
-  networkMode?: QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData
-  >['networkMode']
+  networkMode?: QueryObserverOptions<TQueryFnData, TError, TData>['networkMode']
 }
 
 /**
@@ -483,3 +489,83 @@ export interface QueriesResult<TItem, TData = unknown, TError = Error> {
    */
   readonly __family: true
 }
+
+/** One store or a shallow shape of stores, as in sample/attach. */
+export type OptionsSource =
+  | Store<unknown>
+  | Readonly<Record<string, Store<unknown>>>
+export type SourceValue<S extends OptionsSource> =
+  S extends Store<infer V>
+    ? V
+    : { -readonly [P in keyof S]: S[P] extends Store<infer V> ? V : never }
+
+type FactoryOverrides<Interval> = {
+  name?: string
+  enabled?: StoreOrValue<boolean>
+  refetchInterval?: Interval | Store<number | false | undefined>
+}
+type FactoryOnly<Options> = {
+  [P in Exclude<keyof Options, 'enabled' | 'refetchInterval'>]?: never
+}
+
+/**
+ * Reuses ordinary options factories. Runtime enabled is boolean; native
+ * helper return types also include callback enabled, so a callback value
+ * requires a boolean top-level override. Use combine for derived conditions.
+ */
+export type CreateQueryFactoryOptions<
+  S extends OptionsSource,
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+> = {
+  source: S
+  query: (
+    source: SourceValue<S>,
+  ) => QueryObserverOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    TQueryKey
+  >
+} & FactoryOverrides<
+  QueryObserverOptions<
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
+  >['refetchInterval']
+> &
+  FactoryOnly<QueryObserverOptions>
+
+export type CreateInfiniteQueryFactoryOptions<
+  S extends OptionsSource,
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  TQueryKey extends QueryKey = QueryKey,
+> = {
+  source: S
+  query: (
+    source: SourceValue<S>,
+  ) => InfiniteQueryObserverOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey,
+    TPageParam
+  >
+} & FactoryOverrides<
+  InfiniteQueryObserverOptions<
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryKey>,
+    NoInfer<TPageParam>
+  >['refetchInterval']
+> &
+  FactoryOnly<InfiniteQueryObserverOptions>

@@ -7,7 +7,7 @@ import {
   type Store,
 } from 'effector'
 import { QueryObserver, hashKey } from '@tanstack/query-core'
-import type { QueryClient } from '@tanstack/query-core'
+import type { QueryClient, QueryKey } from '@tanstack/query-core'
 import { $queryClient as $globalQueryClient } from './queryClient'
 import { sidConfig, warnMissingName } from './createBaseQuery'
 import type {
@@ -52,7 +52,7 @@ export function createQueries<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
-  TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
+  TQueryKey extends QueryKey = QueryKey,
 >(
   options: CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
 ): QueriesResult<TItem, TData, TError>
@@ -61,7 +61,7 @@ export function createQueries<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
-  TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
+  TQueryKey extends QueryKey = QueryKey,
 >(
   queryClient: QueryClient,
   options: CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
@@ -71,7 +71,7 @@ export function createQueries<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
-  TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
+  TQueryKey extends QueryKey = QueryKey,
 >(
   arg1:
     | QueryClient
@@ -417,7 +417,7 @@ export function createQueries<
   }
 }
 
-function parseArgs<TItem, TQueryFnData, TError, TData, TQueryKey extends ReadonlyArray<unknown>>(
+function parseArgs<TItem, TQueryFnData, TError, TData, TQueryKey extends QueryKey>(
   arg1:
     | QueryClient
     | CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,

@@ -12,7 +12,15 @@ import type {
 } from '@tanstack/query-core'
 
 // Core-only equivalent of the native helper's observer options.
-type UseQueryOptions<TQueryFnData = unknown, TError = DefaultError, TData = TQueryFnData, TQueryKey extends QueryKey = QueryKey> = Omit<QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>, 'suspense'>
+type UseQueryOptions<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+> = Omit<
+  QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
+  'suspense'
+>
 
 export type UndefinedInitialDataOptions<
   TQueryFnData = unknown,
