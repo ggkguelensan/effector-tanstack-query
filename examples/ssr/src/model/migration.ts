@@ -1,5 +1,5 @@
 import { createQuery } from '@effector-tanstack-query/core'
-import { migrationListOptions } from './migration.qo'
+import { fetchPokemonList, type PokemonListResponse } from './api'
 
 /**
  * Migration demo: side-by-side `@tanstack/react-query` + this library.
@@ -18,8 +18,16 @@ import { migrationListOptions } from './migration.qo'
  * works but somehow we now fetch twice" headache.
  */
 
+export const MIGRATION_LIST_KEY = ['migration-list'] as const
+export const MIGRATION_LIST_LIMIT = 10
+
+export function fetchMigrationList(): Promise<PokemonListResponse> {
+  return fetchPokemonList(MIGRATION_LIST_LIMIT, 0)
+}
+
 export const migrationListQuery = createQuery({
   name: 'migration.list',
-  source: {},
-  query: migrationListOptions,
+  queryKey: MIGRATION_LIST_KEY,
+  queryFn: fetchMigrationList,
+  staleTime: 60_000,
 })

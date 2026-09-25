@@ -6,8 +6,11 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useQuery as useEffectorQuery } from '@effector-tanstack-query/react'
-import { migrationListQuery } from '@/model/migration'
-import { migrationListOptions } from '@/model/migration.qo'
+import {
+  MIGRATION_LIST_KEY,
+  fetchMigrationList,
+  migrationListQuery,
+} from '@/model/migration'
 import type { PokemonListResponse } from '@/model/api'
 
 /**
@@ -28,8 +31,8 @@ export function MigrationBody() {
     <main className="main">
       <h1>Migration playground — react-query ↔ effector-tanstack-query</h1>
       <p className="muted">
-        Same data, two hooks. Click any "from vanilla" / "from effector" button
-        — both panels react. Pitfalls and the wiring are in
+        Same data, two hooks. Click any "from vanilla" / "from effector"
+        button — both panels react. Pitfalls and the wiring are in
         <code> app/migration/page.tsx</code> and
         <code> src/lib/migration-provider.tsx</code>.
       </p>
@@ -53,14 +56,14 @@ export function MigrationBody() {
           other thinks data is fresh.
         </li>
         <li>
-          Both APIs must point at the same <code>QueryClient</code> instance. On
-          the client that's the singleton from <code>lib/providers.tsx</code>;
-          on the server it's the per-request QC from{' '}
-          <code>makeRequestScope()</code>.
+          Both APIs must point at the same <code>QueryClient</code> instance.
+          On the client that's the singleton from{' '}
+          <code>lib/providers.tsx</code>; on the server it's the per-request
+          QC from <code>makeRequestScope()</code>.
         </li>
         <li>
-          Don't double-prefetch. One prefetch (via either API) fills the shared
-          cache entry for both.
+          Don't double-prefetch. One prefetch (via either API) fills the
+          shared cache entry for both.
         </li>
       </ul>
     </main>
@@ -72,13 +75,13 @@ function Toolbar() {
   const [pending, startTransition] = React.useTransition()
 
   function invalidate() {
-    void qc.invalidateQueries({ queryKey: migrationListOptions().queryKey })
+    void qc.invalidateQueries({ queryKey: MIGRATION_LIST_KEY })
   }
 
   function renameFirstViaSetQueryData() {
     // setQueryData via react-query → effector's $data store updates too,
     // because both subscribe to the same cache entry via the same QC.
-    qc.setQueryData(migrationListOptions().queryKey, (prev) => {
+    qc.setQueryData<PokemonListResponse>(MIGRATION_LIST_KEY, (prev) => {
       if (!prev) return prev
       const [first, ...rest] = prev.results
       if (!first) return prev
@@ -126,10 +129,13 @@ function Toolbar() {
 
 function VanillaSide() {
   // Plain `@tanstack/react-query` usage — the "before" code.
-  // The native hook and Effector adapter reuse the same options factory.
-  const { data, isFetching, isPending, error, refetch } = useVanillaQuery(
-    migrationListOptions(),
-  )
+  // `queryKey` / `queryFn` / `staleTime` must match the effector factory.
+  const { data, isFetching, isPending, error, refetch } =
+    useVanillaQuery<PokemonListResponse>({
+      queryKey: MIGRATION_LIST_KEY,
+      queryFn: fetchMigrationList,
+      staleTime: 60_000,
+    })
 
   return (
     <section className="card" style={{ flex: 1 }}>
@@ -138,7 +144,7 @@ function VanillaSide() {
         {isFetching && <span className="badge pending">fetching…</span>}
       </div>
       <p className="muted">
-        <code>useQuery(migrationListOptions())</code> from{' '}
+        <code>useQuery({'{ queryKey, queryFn }'})</code> from{' '}
         <code>@tanstack/react-query</code>. Pre-migration code path.
       </p>
       <button onClick={() => void refetch()} disabled={isFetching}>

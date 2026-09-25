@@ -302,4 +302,4 @@ the adapter's boolean `enabled` gate.
 
 Rule of thumb: use **inline** when defining a key in place, **factory** when
 reusing an options definition, and **createQueries** for one query per source
-item. See the Next.js migration playground for two consumers of one definition.
+item.
