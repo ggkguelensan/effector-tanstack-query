@@ -2,7 +2,7 @@ import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
 import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
-import { resolveQueryOptions } from './resolve'
+import { resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
@@ -66,7 +66,7 @@ export function createQuery<
   const options = arg2 ?? (arg1 as Exclude<typeof arg1, QueryClient>)
   const { name } = options
   if (!name) warnMissingName('createQuery')
-  const $options = resolveQueryOptions(options)
+  const definition = resolveQueryDefinition(options)
 
   const base = createBaseQuery<
     TData,
@@ -75,7 +75,7 @@ export function createQuery<
     QueryObserver<TQueryFnData, TError, TData>
   >(
     explicitClient,
-    { $options, name },
+    { definition, name },
     {
       createObserver: (qc, options) =>
         new QueryObserver<TQueryFnData, TError, TData>(qc, options),
@@ -96,7 +96,7 @@ export function createQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchQuery(options as any)
+      return qc.fetchQuery(definition.prefetch(options) as any)
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -134,12 +134,22 @@ export function createQuery<
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
     value: (qc: QueryClient, options: ResolvedOptions) =>
-      new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+      new QueryObserver<TQueryFnData, TError, TData>(
+        qc,
+        definition.create(options),
+      ),
   })
-  Object.defineProperty(result, '__options', {
-    enumerable: false,
-    value: base.$options,
-  })
+  if (!('queryKey' in options)) {
+    Object.defineProperty(result, '__createObserverWithOptions', {
+      enumerable: false,
+      value: (qc: QueryClient, options: ResolvedOptions) =>
+        new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+    })
+    Object.defineProperty(result, '__options', {
+      enumerable: false,
+      value: base.$options,
+    })
+  }
   Object.defineProperty(result, '__resolvedKey', {
     enumerable: false,
     value: base.$resolvedKey,

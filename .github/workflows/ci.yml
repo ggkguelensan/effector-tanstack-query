@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Pin the supported Query floor and TypeScript version
+      - name: Pin the modern helper baseline and TypeScript version
         env:
           TYPESCRIPT_VERSION: ${{ matrix.typescript }}
         run: |
@@ -44,6 +44,21 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm test:types
       - run: pnpm test
+
+  backwards-compatibility:
+    name: Pre-PR compatibility (Query v5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:compat
 
   test:
     name: Test (Node ${{ matrix.node }})

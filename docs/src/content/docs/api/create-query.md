@@ -40,7 +40,9 @@ const explicit = createQuery(queryClient, {
 ```
 
 The existing `queryKey` form is called **inline**. Both forms return the same
-`QueryResult`; mixing their fields is a type error.
+`QueryResult`. A `queryKey` selects inline; otherwise `source` + `query` selects
+factory. Existing inline option variables/spreads may retain unrelated extra
+fields called `source` or `query`; these do not activate the factory form.
 
 - `source` is one `Store<T>` or a shallow shape of stores. Readonly derived stores
   from `combine`/`map` are supported. The callback receives plain resolved values.
@@ -66,10 +68,16 @@ for consumer composition and inference examples.
 
 ## Observer options policy
 
-Both forms use `notifyOnChangeProps: 'all'` for their observers, including when
+The factory form uses `notifyOnChangeProps: 'all'` for its observers, including when
 client defaults or the factory request a narrower notification filter. Effector
 stores and completion events need all relevant transitions; UI consumers can
 subscribe to the stores they need. Input options/defaults are never mutated.
+
+Inline preserves its existing observer behavior: notification filters are passed
+through, and key/enabled/polling updates patch the observer's resolved options.
+Factory updates replace the complete options object, so removed fields can fall
+back to defaults for the current key. These policies differ to keep existing
+inline applications backward compatible.
 
 TanStack owns cache, fetching, retry and observer options. Effector owns source
 resolution, scoped subscriptions and stores/events. UI integration owns rendering,

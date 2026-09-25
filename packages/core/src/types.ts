@@ -1,3 +1,4 @@
+import type { InfiniteOptions, NoInfer } from './optionsCompat'
 import type { Event, EventCallable, Store } from 'effector'
 import type {
   DefaultError,
@@ -25,10 +26,9 @@ export type StoreOrValue<T> = Store<T> | T
  * const $userId = createStore(1)
  * queryKey: ['user', $userId, 'details']
  */
-type ReactiveKey<K extends QueryKey> = {
-  readonly [P in keyof K]: StoreOrValue<K[P]>
-}
-export type EffectorQueryKey = ReactiveKey<QueryKey>
+export type EffectorQueryKey = ReadonlyArray<
+  StoreOrValue<string | number | bigint | boolean | null | undefined | object>
+>
 
 /**
  * Resolves a single `EffectorQueryKey` element to its runtime value type:
@@ -71,8 +71,6 @@ export interface CreateQueryOptions<
     >,
     'queryKey' | 'enabled' | 'refetchInterval'
   > {
-  source?: never
-  query?: never
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /**
@@ -206,8 +204,6 @@ export interface CreateInfiniteQueryOptions<
     >,
     'queryKey' | 'enabled' | 'refetchInterval'
   > {
-  source?: never
-  query?: never
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /** See {@link CreateQueryOptions.refetchInterval}. */
@@ -379,7 +375,7 @@ export interface CreateQueriesItemOptions<
   TQueryFnData,
   TError,
   TData,
-  TQueryKey extends QueryKey,
+  TQueryKey extends ReadonlyArray<unknown>,
 > extends Omit<
     QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
     'queryKey' | 'enabled'
@@ -393,7 +389,7 @@ export interface CreateQueriesOptions<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
-  TQueryKey extends QueryKey = QueryKey,
+  TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
 > {
   /**
    * Stable name used to derive the SID of the result `$items` store so
@@ -521,15 +517,13 @@ export type CreateQueryFactoryOptions<
   TQueryKey extends QueryKey = QueryKey,
 > = {
   source: S
+  // Infer keys from the options' callbacks, not their extra DataTag symbols.
   query: (
     source: SourceValue<S>,
-  ) => QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryFnData,
-    TQueryKey
-  >
+  ) => Omit<
+    QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
+    'queryKey'
+  > & { queryKey: NoInfer<TQueryKey> }
 } & FactoryOverrides<
   QueryObserverOptions<
     NoInfer<TQueryFnData>,
@@ -552,15 +546,12 @@ export type CreateInfiniteQueryFactoryOptions<
   source: S
   query: (
     source: SourceValue<S>,
-  ) => InfiniteQueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TPageParam
-  >
+  ) => Omit<
+    InfiniteOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+    'queryKey'
+  > & { queryKey: NoInfer<TQueryKey> }
 } & FactoryOverrides<
-  InfiniteQueryObserverOptions<
+  InfiniteOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TError>,
     NoInfer<TData>,

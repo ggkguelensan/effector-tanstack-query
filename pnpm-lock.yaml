@@ -189,7 +189,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@tanstack/query-core':
-        specifier: ^5.100.10
+        specifier: ^5.0.0
         version: 5.100.10
       effector:
         specifier: '>=23.0.0'

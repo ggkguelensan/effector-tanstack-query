@@ -79,14 +79,15 @@ const mixed = {
   query: (id: number) => todoOptions({ id }),
   queryKey: ['wrong'],
 }
-// @ts-expect-error both forms in a stored object are rejected
+// Existing inline option objects may have unrelated extra properties.
+// A queryKey selects inline, just as before factory support.
 createQuery(mixed)
-// @ts-expect-error top-level queryFn belongs to inline only
+// Spreading those objects into an inline definition remains valid.
 createQuery({ ...mixed, queryFn: () => 1 })
 // @ts-expect-error source must contain stores, not plain values
 createQuery({ source: { id: 1 }, query: todoOptions })
-// @ts-expect-error event sources are not supported
 createQuery({
+  // @ts-expect-error event sources are not supported
   source: createEvent<number>(),
   query: (id: number) => todoOptions({ id }),
 })

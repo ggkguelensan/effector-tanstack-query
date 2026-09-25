@@ -1,15 +1,18 @@
 // Adapted from @tanstack/react-query 5.100.10; see ../LICENSE.TanStack.
 import type {
-  DataTag,
   DefaultError,
   InfiniteData,
   InitialDataFunction,
+  QueryKey,
+} from '@tanstack/query-core'
+
+import type {
+  DataTag,
   NonUndefinedGuard,
   OmitKeyof,
-  QueryKey,
-  InfiniteQueryObserverOptions,
   SkipToken,
-} from '@tanstack/query-core'
+  InfiniteOptions,
+} from './optionsCompat'
 
 // Core-only equivalent of the native helper's observer options.
 type UseInfiniteQueryOptions<
@@ -19,13 +22,7 @@ type UseInfiniteQueryOptions<
   TQueryKey extends QueryKey = QueryKey,
   TPageParam = unknown,
 > = Omit<
-  InfiniteQueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TPageParam
-  >,
+  InfiniteOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
   'suspense'
 >
 

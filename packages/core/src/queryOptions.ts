@@ -1,15 +1,18 @@
 // Adapted from @tanstack/react-query 5.100.10; see ../LICENSE.TanStack.
 import type {
-  DataTag,
   DefaultError,
   InitialDataFunction,
-  NonUndefinedGuard,
-  OmitKeyof,
   QueryFunction,
   QueryKey,
   QueryObserverOptions,
-  SkipToken,
 } from '@tanstack/query-core'
+
+import type {
+  DataTag,
+  NonUndefinedGuard,
+  OmitKeyof,
+  SkipToken,
+} from './optionsCompat'
 
 // Core-only equivalent of the native helper's observer options.
 type UseQueryOptions<

@@ -7,7 +7,7 @@ import type {
   QueryKey,
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
-import { resolveQueryOptions } from './resolve'
+import { resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
 import type {
   CreateInfiniteQueryOptions,
@@ -140,7 +140,7 @@ export function createInfiniteQuery<
   const options = arg2 ?? (arg1 as Exclude<typeof arg1, QueryClient>)
   const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
-  const $options = resolveQueryOptions(options)
+  const definition = resolveQueryDefinition(options)
 
   const base = createBaseQuery<
     TData,
@@ -159,7 +159,7 @@ export function createInfiniteQuery<
     }
   >(
     explicitClient,
-    { $options, name },
+    { definition, name },
     {
       createObserver: (qc, options) =>
         new InfiniteQueryObserver<
@@ -279,7 +279,7 @@ export function createInfiniteQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchInfiniteQuery(options as any)
+      return qc.fetchInfiniteQuery(definition.prefetch(options) as any)
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -320,12 +320,25 @@ export function createInfiniteQuery<
         TData,
         QueryKey,
         TPageParam
-      >(qc, options as any),
+      >(qc, definition.create(options) as any),
   })
-  Object.defineProperty(result, '__options', {
-    enumerable: false,
-    value: base.$options,
-  })
+  if (!('queryKey' in options)) {
+    Object.defineProperty(result, '__createObserverWithOptions', {
+      enumerable: false,
+      value: (qc: QueryClient, options: ResolvedOptions) =>
+        new InfiniteQueryObserver<
+          TQueryFnData,
+          TError,
+          TData,
+          QueryKey,
+          TPageParam
+        >(qc, options as any),
+    })
+    Object.defineProperty(result, '__options', {
+      enumerable: false,
+      value: base.$options,
+    })
+  }
   Object.defineProperty(result, '__resolvedKey', {
     enumerable: false,
     value: base.$resolvedKey,

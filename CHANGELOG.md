@@ -16,13 +16,18 @@ Both `@effector-tanstack-query/core` and `@effector-tanstack-query/react` share 
 - Factory SSR, scope, options updates, native helper types and pre-mount Suspense
   coverage; compatibility with registered query keys and errors.
 
-### Changed
+### Compatibility
 
-- Query observers resolve full current options for mount, update, prefetch and
-  Suspense. Removed options no longer survive from the previous observer state.
-- Query/infinite observers use complete notifications for their Effector stores.
-- Supported TanStack Query Core (and optional native React Query) floor is
-  5.100.10. Earlier versions are not covered by the new helper/type contract.
+- Existing inline calls retain their observer notification filters, resolved
+  defaults, custom-hash handling, polling updates and prefetch behavior.
+- Factory observers apply complete current options and complete notifications;
+  this policy does not change inline execution.
+- The TanStack Query peer dependency range remains `^5.0.0`. Helper declarations
+  adapt to the installed core's data/error tags and optional skip-token support.
+- Inline Suspense models retain the previous core/React protocol. The new React
+  adapter also accepts models created by the previous core implementation.
+- A compatibility suite compares inline behavior and published type contracts
+  with pre-PR master on Query 5.0.0, 5.40.0, 5.80.0 and 5.100.10.
 
 `enabled` retains boolean semantics. Derive conditions with `combine` and pass a
 store. Native helper return types remain accepted; an actual callback `enabled`

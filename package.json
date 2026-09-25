@@ -16,7 +16,8 @@
     "test": "pnpm -r --filter './packages/*' run test",
     "test:types": "pnpm -r --filter './packages/*' run test:types",
     "check:publish": "pnpm -r --filter './packages/*' run check:publish",
-    "release": "pnpm build && pnpm -r --filter './packages/*' publish --access public --no-git-checks --provenance"
+    "release": "pnpm build && pnpm -r --filter './packages/*' publish --access public --no-git-checks --provenance",
+    "test:compat": "pnpm build && node scripts/compat/run.mjs"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.8.0",

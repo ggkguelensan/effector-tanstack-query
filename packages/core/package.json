@@ -50,7 +50,7 @@
     "clean": "rm -rf ./dist ./coverage",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:types": "tsc --noEmit && tsc -p tsconfig.registered.json",
+    "test:types": "tsc --noEmit && tsup --dts-only --out-dir .type-tests-dist && tsc -p tsconfig.registered.json",
     "check:publish": "publint && attw --pack ."
   },
   "devDependencies": {
@@ -59,7 +59,7 @@
     "publint": "^0.3.21"
   },
   "peerDependencies": {
-    "@tanstack/query-core": "^5.100.10",
+    "@tanstack/query-core": "^5.0.0",
     "effector": ">=23.0.0"
   }
 }

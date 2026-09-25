@@ -6,7 +6,7 @@ import {
   createInfiniteQuery,
   queryOptions,
   infiniteQueryOptions,
-} from '../src/index'
+} from '../.type-tests-dist/index'
 
 class ApplicationError extends Error {
   kind = 'application'
@@ -56,3 +56,11 @@ expectTypeOf(inline.$error).toEqualTypeOf<Store<Error | null>>()
 queryOptions({ queryKey: ['wrong'], queryFn: () => 1 })
 // @ts-expect-error registered metadata requires audit
 queryOptions({ queryKey: ['app'], meta: {}, queryFn: () => 1 })
+
+// The legacy key alias remains independent of Query Core's Register, exactly
+// as before this PR. Only the new factory/helper contract follows Register.
+const legacyKey: import('../.type-tests-dist/index').EffectorQueryKey = [
+  'legacy',
+  $id,
+]
+void legacyKey

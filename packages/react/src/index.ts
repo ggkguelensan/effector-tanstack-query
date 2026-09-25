@@ -316,7 +316,9 @@ export function useQueries<TItem, TData, TError>(
 ): ReadonlyArray<UseQueryResult<TData, TError>>
 export function useQueries(
   arg: UseQueriesTuple | QueriesResult<unknown, unknown, unknown>,
-): UseQueriesTupleResult<UseQueriesTuple> | ReadonlyArray<UseQueryResult<unknown, unknown>> {
+):
+  | UseQueriesTupleResult<UseQueriesTuple>
+  | ReadonlyArray<UseQueryResult<unknown, unknown>> {
   if (Array.isArray(arg)) {
     return useQueriesTuple(arg)
   }
@@ -333,18 +335,18 @@ function useQueriesTuple<T extends UseQueriesTuple>(
   // Rules-of-hooks constraint: the SHAPE of the call list must be
   // stable, not the length of each input array. We satisfy this with a
   // fixed sequence of 9 state-store calls + 3 event-bind calls.
-  const datas              = useUnit(queries.map((q) => q.$data))
-  const errors             = useUnit(queries.map((q) => q.$error))
-  const statuses           = useUnit(queries.map((q) => q.$status))
-  const isPendings         = useUnit(queries.map((q) => q.$isPending))
-  const isFetchings        = useUnit(queries.map((q) => q.$isFetching))
-  const isSuccesses        = useUnit(queries.map((q) => q.$isSuccess))
-  const isErrors           = useUnit(queries.map((q) => q.$isError))
+  const datas = useUnit(queries.map((q) => q.$data))
+  const errors = useUnit(queries.map((q) => q.$error))
+  const statuses = useUnit(queries.map((q) => q.$status))
+  const isPendings = useUnit(queries.map((q) => q.$isPending))
+  const isFetchings = useUnit(queries.map((q) => q.$isFetching))
+  const isSuccesses = useUnit(queries.map((q) => q.$isSuccess))
+  const isErrors = useUnit(queries.map((q) => q.$isError))
   const isPlaceholderDatas = useUnit(queries.map((q) => q.$isPlaceholderData))
-  const fetchStatuses      = useUnit(queries.map((q) => q.$fetchStatus))
+  const fetchStatuses = useUnit(queries.map((q) => q.$fetchStatus))
 
-  const mounts    = useUnit(queries.map((q) => q.mounted))
-  const unmounts  = useUnit(queries.map((q) => q.unmounted))
+  const mounts = useUnit(queries.map((q) => q.mounted))
+  const unmounts = useUnit(queries.map((q) => q.unmounted))
   const refreshes = useUnit(queries.map((q) => q.refresh))
 
   React.useEffect(() => {
@@ -360,16 +362,16 @@ function useQueriesTuple<T extends UseQueriesTuple>(
   }, [queries.length])
 
   return queries.map((_, i) => ({
-    data:              datas[i],
-    error:             errors[i],
-    status:            statuses[i],
-    isPending:         isPendings[i],
-    isFetching:        isFetchings[i],
-    isSuccess:         isSuccesses[i],
-    isError:           isErrors[i],
+    data: datas[i],
+    error: errors[i],
+    status: statuses[i],
+    isPending: isPendings[i],
+    isFetching: isFetchings[i],
+    isSuccess: isSuccesses[i],
+    isError: isErrors[i],
     isPlaceholderData: isPlaceholderDatas[i],
-    fetchStatus:       fetchStatuses[i],
-    refresh:           refreshes[i],
+    fetchStatus: fetchStatuses[i],
+    refresh: refreshes[i],
   })) as UseQueriesTupleResult<T>
 }
 
@@ -387,18 +389,18 @@ function useQueriesFamily<TItem, TData, TError>(
   }, [mount, unmount])
 
   return items.map((it) => ({
-    data:              it.data,
-    error:             it.error,
-    status:            it.status,
-    isPending:         it.isPending,
-    isFetching:        it.isFetching,
-    isSuccess:         it.isSuccess,
-    isError:           it.isError,
+    data: it.data,
+    error: it.error,
+    status: it.status,
+    isPending: it.isPending,
+    isFetching: it.isFetching,
+    isSuccess: it.isSuccess,
+    isError: it.isError,
     isPlaceholderData: it.isPlaceholderData,
-    fetchStatus:       it.fetchStatus,
+    fetchStatus: it.fetchStatus,
     // Per-item refresh — routes through the family's `refreshOne(item)`
     // so the consumer doesn't have to thread the source manually.
-    refresh:           () => refreshOne(it.source),
+    refresh: () => refreshOne(it.source),
   }))
 }
 
@@ -425,20 +427,25 @@ function useObserverRerender(
   }, [observer])
 }
 
+type SuspenseOptions = import('@tanstack/query-core').QueryObserverOptions<
+  any,
+  any,
+  any,
+  any,
+  any
+>
 interface SuspenseFactory<TObserver> {
   __createObserver(
     qc: import('@tanstack/query-core').QueryClient,
-    options: import('@tanstack/query-core').QueryObserverOptions<
-      any,
-      any,
-      any,
-      any,
-      any
-    >,
+    init: { queryKey: unknown; enabled: boolean },
   ): TObserver
-  __options: import('effector').Store<
-    import('@tanstack/query-core').QueryObserverOptions<any, any, any, any, any>
-  >
+  __createObserverWithOptions?(
+    qc: import('@tanstack/query-core').QueryClient,
+    options: SuspenseOptions,
+  ): TObserver
+  __options?: import('effector').Store<SuspenseOptions>
+  __resolvedKey: import('effector').Store<unknown>
+  __enabled: import('effector').Store<boolean>
 }
 
 export interface UseSuspenseQueryResult<TData, TError = Error> {
@@ -761,7 +768,11 @@ function useSuspenseObserver<
   const factory = query as unknown as TQuery & SuspenseFactory<TObserver>
   const observerInScope = useUnit(query.$observer) as TObserver | null
   const qc = useUnit(query.$queryClient)
-  const options = useUnit(factory.__options)
+  const resolved = useUnit(factory.__options ?? factory.__resolvedKey)
+  const enabled = useUnit(factory.__enabled)
+  const options = factory.__options
+    ? (resolved as SuspenseOptions)
+    : ({ queryKey: resolved, enabled } as SuspenseOptions)
 
   // Memoize a transient observer keyed by qc, so it survives across renders
   // while the scope observer is null. Once observerInScope appears, we
@@ -769,9 +780,17 @@ function useSuspenseObserver<
   // subscribed to queryCache, so there is nothing to leak).
   const transient = React.useMemo(() => {
     if (observerInScope || !qc) return null
-    return factory.__createObserver(qc, options)
+    return factory.__createObserverWithOptions
+      ? factory.__createObserverWithOptions(qc, options)
+      : factory.__createObserver(qc, { queryKey: options.queryKey, enabled })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [observerInScope, qc, factory, options])
+  }, [observerInScope, qc, factory, factory.__options ? resolved : undefined])
+
+  // Preserve the legacy protocol when consuming models created by older core.
+  React.useEffect(() => {
+    if (!transient || factory.__options) return
+    transient.setOptions({ ...transient.options, queryKey: resolved, enabled })
+  }, [transient, factory, resolved, enabled])
 
   // Null is a legitimate return: server-RSC render of a scope built from
   // `serialize(scope)` has neither `$observer` nor `$queryClient` (both are
@@ -841,7 +860,13 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   const observersInScope = useUnit(queries.map((q) => q.$observer))
   const qcs = useUnit(queries.map((q) => q.$queryClient))
   const resolvedOptions = useUnit(
-    queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__options),
+    queries.map((q) => {
+      const factory = q as unknown as SuspenseFactory<unknown>
+      return factory.__options ?? factory.__resolvedKey
+    }),
+  )
+  const enabledStates = useUnit(
+    queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__enabled),
   )
   // Transient observers per slot (null when an in-scope observer
   // exists or no qc is available). One useMemo across all queries —
@@ -851,13 +876,28 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
       if (observersInScope[i]) return null
       const qc = qcs[i]
       if (!qc) return null
-      return (q as unknown as SuspenseFactory<any>).__createObserver(
-        qc,
-        resolvedOptions[i]!,
-      )
+      const factory = q as unknown as SuspenseFactory<any>
+      if (factory.__createObserverWithOptions && factory.__options) {
+        return factory.__createObserverWithOptions(
+          qc,
+          resolvedOptions[i] as SuspenseOptions,
+        )
+      }
+      return factory.__createObserver(qc, {
+        queryKey: factory.__options
+          ? (resolvedOptions[i] as SuspenseOptions).queryKey
+          : resolvedOptions[i],
+        enabled: enabledStates[i]!,
+      })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries, ...observersInScope, ...qcs, ...resolvedOptions])
+  }, [
+    queries,
+    ...observersInScope,
+    ...qcs,
+    ...resolvedOptions,
+    ...enabledStates,
+  ])
 
   type SuspendableObserver = {
     options: { queryKey: unknown }

@@ -7,7 +7,9 @@ A query is created with `createQuery(options)` (the registered default `QueryCli
 
 ## Reactive query keys
 
-Anywhere in `queryKey`, you can use a `Store` instead of a plain value. The query refetches automatically when any store updates.
+Each top-level element of the inline `queryKey` array can be a store or a plain
+value. Store updates update the resolved key; TanStack decides whether fetching
+is needed.
 
 ```ts
 const $userId = createStore(1)
@@ -24,6 +26,28 @@ Mixing stores and primitives is supported:
 ```ts
 queryKey: ['posts', 42, $section, { sort: 'asc' }]
 ```
+
+Keys can contain nested objects. For reactive objects, put a `combine` store
+at the top level of the key:
+
+```ts
+const $params = combine({
+  todoId: $todoId,
+  filters: combine({ language: $language }),
+})
+
+const todoQuery = createQuery({
+  name: 'todo',
+  queryKey: ['todos', $params],
+  queryFn: ({ queryKey: [, params], signal }) => fetchTodo(params, { signal }),
+  enabled: $enabled,
+})
+```
+
+The resolved key contains ordinary values, for example
+`['todos', { todoId: 1, filters: { language: 'en' } }]`.
+`['todos', { todoId: $todoId }]` does **not** unwrap the nested store.
+This inline behavior is unchanged by factory support.
 
 ## Enabled flag
 

@@ -7,7 +7,7 @@ import type {
   QueryStatus,
 } from '@tanstack/query-core'
 import { $queryClient } from './queryClient'
-import type { ResolvedOptions } from './resolve'
+import type { QueryDefinition, ResolvedOptions } from './resolve'
 
 /**
  * The minimal shape of an observer that createBaseQuery knows how to drive.
@@ -89,7 +89,7 @@ export interface BaseQueryStores<TData, TError, TObserver> {
 }
 
 export interface BaseQueryOptions {
-  $options: Store<ResolvedOptions>
+  definition: QueryDefinition
   name?: string
 }
 
@@ -176,9 +176,8 @@ export function createBaseQuery<
     TExtraStores
   >,
 ): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
-  const { name, $options } = options
-  const $resolvedKey = $options.map((options) => options.queryKey)
-  const $enabled = $options.map((options) => options.enabled)
+  const { name, definition } = options
+  const { $options, $resolvedKey, $enabled } = definition
 
   // If an explicit client is passed, the factory is locked to it. fork()
   // values cannot override the captured value because $effectiveClient is a
@@ -266,7 +265,8 @@ export function createBaseQuery<
       }
 
       const observer =
-        existingObserver ?? config.createObserver(qc, currentOptions)
+        existingObserver ??
+        config.createObserver(qc, definition.create(currentOptions))
 
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })
@@ -290,7 +290,13 @@ export function createBaseQuery<
       let lastErrorUpdatedAt = -1
 
       observerSubscriptions.get(observer)?.()
-      observer.setOptions(currentOptions)
+      observer.setOptions(
+        definition.update(
+          observer.options as ResolvedOptions,
+          currentOptions,
+          true,
+        ),
+      )
 
       const dispatch = (result: TResult) => {
         dispatchData(result.data)
@@ -347,7 +353,14 @@ export function createBaseQuery<
   const updateObserverFx = attach({
     source: $observer,
     effect: (observer, currentOptions: ResolvedOptions) => {
-      if (observer) observer.setOptions(currentOptions)
+      if (observer)
+        observer.setOptions(
+          definition.update(
+            observer.options as ResolvedOptions,
+            currentOptions,
+            false,
+          ),
+        )
     },
   })
 

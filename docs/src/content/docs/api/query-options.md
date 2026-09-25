@@ -5,7 +5,8 @@ description: Portable options definitions with typed cache keys, without a UI de
 
 These helpers return the object you pass in. They add no runtime behavior and
 depend only on `@tanstack/query-core`. Their overloads and `DataTag` keys are
-adapted from TanStack React Query 5.100.10 (MIT; attribution ships with core).
+adapted from TanStack React Query 5.100.10 (MIT; attribution ships with core),
+with compatibility types for earlier v5 releases.
 
 ```ts
 import { queryOptions } from '@effector-tanstack-query/core'
@@ -65,10 +66,10 @@ derive reactive conditions with `combine`. A native helper's broad return type
 is accepted, but an actual callback `enabled` requires a boolean override at the
 Effector consumption site. Other framework refs/signals are not unwrapped.
 
-The supported Query Core range starts at **5.100.10** (the tested baseline),
-with TypeScript **5.7+**. This is a supported floor, not a claim that every older
-Query version is incompatible. Keep the native Query package and Query Core
-versions aligned when using both.
+The existing Query Core peer range remains **^5.0.0**, with TypeScript **5.7+**
+tested. Helpers use the data-tag symbols available in the installed core; error
+tags and `skipToken` apply only where that TanStack version supports them. Keep
+native Query packages on matching versions.
 
 Helper `initialData` overloads preserve native compatibility. Effector `$data`
 still includes `undefined` because model creation and observer activation are
