@@ -6,7 +6,8 @@ import type {
   QueryKey,
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
-import { resolveReactiveRefetchInterval } from './resolve'
+import { resolveQueryOptions } from './resolve'
+import type { ResolvedOptions } from './resolve'
 import type {
   CreateInfiniteQueryOptions,
   EffectorQueryKey,
@@ -87,16 +88,9 @@ export function createInfiniteQuery<
     TData,
     TQueryKey
   >(arg1, arg2)
-  const { queryKey, enabled, name, ...restOptions } = options
-
+  const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
-
-  const reactiveRefetchInterval = resolveReactiveRefetchInterval(
-    (restOptions as { refetchInterval?: unknown }).refetchInterval,
-  )
-  if (reactiveRefetchInterval) {
-    delete (restOptions as { refetchInterval?: unknown }).refetchInterval
-  }
+  const $options = resolveQueryOptions(options)
 
   const base = createBaseQuery<
     TData,
@@ -115,20 +109,9 @@ export function createInfiniteQuery<
     }
   >(
     explicitClient,
-    { queryKey, enabled, name, reactiveRefetchInterval },
+    { $options, name },
     {
-      createObserver: (qc, { queryKey: key, enabled: isEnabled }) =>
-        new InfiniteQueryObserver<
-          TQueryFnData,
-          TError,
-          TData,
-          QueryKey,
-          TPageParam
-        >(qc, {
-          ...restOptions,
-          queryKey: key,
-          enabled: isEnabled,
-        } as any),
+      createObserver: (qc, options) => new InfiniteQueryObserver<TQueryFnData, TError, TData, QueryKey, TPageParam>(qc, options as any),
       setupExtras: () => {
         const hasNextPageUpdated = createEvent<boolean>()
         const hasPreviousPageUpdated = createEvent<boolean>()
@@ -235,15 +218,11 @@ export function createInfiniteQuery<
   const prefetchFx = attach({
     source: {
       qc: base.$queryClient,
-      key: base.$resolvedKey,
-      enabled: base.$enabled,
+      options: base.$options,
     },
-    effect: ({ qc, key, enabled }) => {
-      if (!qc || !enabled) return
-      return qc.fetchInfiniteQuery({
-        ...restOptions,
-        queryKey: key,
-      } as any)
+    effect: ({ qc, options }) => {
+      if (!qc || !options.enabled) return
+      return qc.fetchInfiniteQuery(options as any)
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -277,18 +256,12 @@ export function createInfiniteQuery<
 
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, init: { queryKey: any; enabled: boolean }) =>
-      new InfiniteQueryObserver<
-        TQueryFnData,
-        TError,
-        TData,
-        QueryKey,
-        TPageParam
-      >(qc, {
-        ...restOptions,
-        queryKey: init.queryKey,
-        enabled: init.enabled,
-      } as any),
+    value: (qc: QueryClient, options: ResolvedOptions) =>
+      new InfiniteQueryObserver<TQueryFnData, TError, TData, QueryKey, TPageParam>(qc, options as any),
+  })
+  Object.defineProperty(result, '__options', {
+    enumerable: false,
+    value: base.$options,
   })
   Object.defineProperty(result, '__resolvedKey', {
     enumerable: false,

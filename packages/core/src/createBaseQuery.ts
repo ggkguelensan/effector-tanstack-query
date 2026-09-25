@@ -1,6 +1,5 @@
 import {
   attach,
-  combine,
   createEvent,
   createStore,
   sample,
@@ -14,8 +13,7 @@ import type {
   QueryStatus,
 } from '@tanstack/query-core'
 import { $queryClient } from './queryClient'
-import { resolveEnabled, resolveKey } from './resolve'
-import type { EffectorQueryKey, StoreOrValue } from './types'
+import type { ResolvedOptions } from './resolve'
 
 /**
  * The minimal shape of an observer that createBaseQuery knows how to drive.
@@ -79,6 +77,7 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   $resolvedKey: Store<QueryKey>
   /** Internal — used by the React suspense hooks. */
   $enabled: Store<boolean>
+  $options: Store<ResolvedOptions>
   refresh: EventCallable<void>
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
@@ -96,16 +95,7 @@ export interface BaseQueryStores<TData, TError, TObserver> {
 }
 
 export interface BaseQueryOptions {
-  queryKey: EffectorQueryKey
-  enabled?: StoreOrValue<boolean>
-  /**
-   * Pre-resolved reactive `refetchInterval`. The per-flavor factory extracts
-   * the original option, and — if it's a Store — passes the Store here while
-   * stripping the value from the observer constructor options. Static values
-   * and function forms continue to flow through `restOptions` to the
-   * observer.
-   */
-  reactiveRefetchInterval?: Store<number | false | undefined>
+  $options: Store<ResolvedOptions>
   name?: string
 }
 
@@ -166,7 +156,7 @@ export interface CreateBaseQueryConfig<
   /** Build the observer for the current scope. Receives the resolved client. */
   createObserver: (
     queryClient: QueryClient,
-    initial: { queryKey: QueryKey; enabled: boolean },
+    initial: ResolvedOptions,
   ) => TObserver
   /**
    * Hook for query flavors that need additional stores/events (e.g. infinite
@@ -186,9 +176,9 @@ export function createBaseQuery<
   options: BaseQueryOptions,
   config: CreateBaseQueryConfig<TData, TError, TResult, TObserver, TExtraStores>,
 ): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
-  const { name, reactiveRefetchInterval: $reactiveRefetchInterval } = options
-  const $resolvedKey = resolveKey(options.queryKey)
-  const $enabled = resolveEnabled(options.enabled)
+  const { name, $options } = options
+  const $resolvedKey = $options.map(options => options.queryKey)
+  const $enabled = $options.map(options => options.enabled)
 
   // If an explicit client is passed, the factory is locked to it. fork()
   // values cannot override the captured value because $effectiveClient is a
@@ -266,15 +256,7 @@ export function createBaseQuery<
     source: { qc: $effectiveClient, observer: $observer },
     effect: (
       { qc, observer: existingObserver },
-      {
-        key,
-        enabled,
-        refetchInterval,
-      }: {
-        key: QueryKey
-        enabled: boolean
-        refetchInterval: number | false | undefined
-      },
+      currentOptions: ResolvedOptions,
     ) => {
       if (!qc) {
         throw new Error(
@@ -285,7 +267,7 @@ export function createBaseQuery<
 
       const observer =
         existingObserver ??
-        config.createObserver(qc, { queryKey: key, enabled })
+        config.createObserver(qc, currentOptions)
 
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })
@@ -309,15 +291,7 @@ export function createBaseQuery<
       let lastErrorUpdatedAt = -1
 
       observerSubscriptions.get(observer)?.()
-      observer.setOptions({
-        ...observer.options,
-        queryKey: key,
-        enabled,
-        // Only override refetchInterval when the user provided a reactive
-        // Store — otherwise the static value (or function) from the observer
-        // constructor wins.
-        ...($reactiveRefetchInterval ? { refetchInterval } : {}),
-      })
+      observer.setOptions(currentOptions)
 
       const dispatch = (result: TResult) => {
         dispatchData(result.data)
@@ -373,36 +347,8 @@ export function createBaseQuery<
   // wired in mountFx.
   const updateObserverFx = attach({
     source: $observer,
-    effect: (
-      observer,
-      {
-        key,
-        enabled,
-        refetchInterval,
-      }: {
-        key: QueryKey
-        enabled: boolean
-        refetchInterval: number | false | undefined
-      },
-    ) => {
-      if (!observer) return
-      // Strip _defaulted and queryHash so defaultQueryOptions() recomputes
-      // the hash for the new key. Without this, the old hash is preserved and
-      // QueryObserver#updateQuery() finds the old query — no key switch, no fetch.
-      const {
-        _defaulted: _d,
-        queryHash: _h,
-        ...baseOptions
-      } = observer.options as typeof observer.options & {
-        _defaulted?: boolean
-        queryHash?: string
-      }
-      observer.setOptions({
-        ...baseOptions,
-        queryKey: key,
-        enabled,
-        ...($reactiveRefetchInterval ? { refetchInterval } : {}),
-      })
+    effect: (observer, currentOptions: ResolvedOptions) => {
+      if (observer) observer.setOptions(currentOptions)
     },
   })
 
@@ -434,29 +380,16 @@ export function createBaseQuery<
     // observer, so the next mounted() retries instead of being swallowed.
     .on(mountFx.fail, (count) => Math.max(0, count - 1))
 
-  // Combine of all reactive options that drive observer.setOptions. Built once
-  // so mountFx and updateObserverFx see the same shape. When the user didn't
-  // pass a reactive `refetchInterval`, we fall back to a static-`false` store
-  // (its emitted value is never read — the spread is guarded by the original
-  // `$reactiveRefetchInterval` reference).
-  const $observerOptions = combine({
-    key: $resolvedKey,
-    enabled: $enabled,
-    refetchInterval:
-      $reactiveRefetchInterval ??
-      createStore<number | false | undefined>(false),
-  })
-
   sample({
     clock: mountCounted,
-    source: $observerOptions,
+    source: $options,
     filter: (_, count) => count === 1,
     target: mountFx,
   })
 
   sample({
-    clock: $observerOptions,
-    source: $observerOptions,
+    clock: $options,
+    source: $options,
     filter: $isMounted,
     target: updateObserverFx,
   })
@@ -507,6 +440,7 @@ export function createBaseQuery<
     $queryClient: $effectiveClient,
     $resolvedKey,
     $enabled,
+    $options,
     refresh,
     mounted,
     unmounted,

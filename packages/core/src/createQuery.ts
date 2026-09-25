@@ -2,7 +2,8 @@ import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
 import type { QueryClient } from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
-import { resolveReactiveRefetchInterval } from './resolve'
+import { resolveQueryOptions } from './resolve'
+import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
   EffectorQueryKey,
@@ -43,19 +44,9 @@ export function createQuery<
     TData,
     TQueryKey
   >(arg1, arg2)
-  const { queryKey, enabled, name, ...restOptions } = options
-
+  const { name } = options
   if (!name) warnMissingName('createQuery')
-
-  // If `refetchInterval` is a Store, pull it out for reactive wiring in
-  // createBaseQuery — otherwise leave it in restOptions for the observer
-  // constructor (handles plain values and function forms unchanged).
-  const reactiveRefetchInterval = resolveReactiveRefetchInterval(
-    (restOptions as { refetchInterval?: unknown }).refetchInterval,
-  )
-  if (reactiveRefetchInterval) {
-    delete (restOptions as { refetchInterval?: unknown }).refetchInterval
-  }
+  const $options = resolveQueryOptions(options)
 
   const base = createBaseQuery<
     TData,
@@ -64,17 +55,10 @@ export function createQuery<
     QueryObserver<TQueryFnData, TError, TData>
   >(
     explicitClient,
-    { queryKey, enabled, name, reactiveRefetchInterval },
+    { $options, name },
     {
-      createObserver: (qc, { queryKey: key, enabled: isEnabled }) =>
-        // Cast: restOptions's `refetchInterval` may still type as
-        // `Store | number | false | fn`; the Store form is deleted at runtime
-        // above, but TS can't narrow that here.
-        new QueryObserver<TQueryFnData, TError, TData>(qc, {
-          ...restOptions,
-          queryKey: key,
-          enabled: isEnabled,
-        } as any),
+      createObserver: (qc, options) => new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+
     },
   )
 
@@ -88,15 +72,11 @@ export function createQuery<
   const prefetchFx = attach({
     source: {
       qc: base.$queryClient,
-      key: base.$resolvedKey,
-      enabled: base.$enabled,
+      options: base.$options,
     },
-    effect: ({ qc, key, enabled }) => {
-      if (!qc || !enabled) return
-      return qc.fetchQuery({
-        ...restOptions,
-        queryKey: key,
-      } as any)
+    effect: ({ qc, options }) => {
+      if (!qc || !options.enabled) return
+      return qc.fetchQuery(options as any)
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -133,12 +113,12 @@ export function createQuery<
   // suspended). Not part of the public API; not in TS types.
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, init: { queryKey: any; enabled: boolean }) =>
-      new QueryObserver<TQueryFnData, TError, TData>(qc, {
-        ...restOptions,
-        queryKey: init.queryKey,
-        enabled: init.enabled,
-      } as any),
+    value: (qc: QueryClient, options: ResolvedOptions) =>
+      new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+  })
+  Object.defineProperty(result, '__options', {
+    enumerable: false,
+    value: base.$options,
   })
   Object.defineProperty(result, '__resolvedKey', {
     enumerable: false,

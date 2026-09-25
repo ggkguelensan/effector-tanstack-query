@@ -1,6 +1,7 @@
 import { combine, createStore, is } from 'effector'
 import type { Store } from 'effector'
-import type { QueryKey } from '@tanstack/query-core'
+import { skipToken } from '@tanstack/query-core'
+import type { QueryKey, QueryObserverOptions } from '@tanstack/query-core'
 import type { EffectorQueryKey, StoreOrValue } from './types'
 
 export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
@@ -47,4 +48,31 @@ export function resolveReactiveRefetchInterval(
   return is.store(value)
     ? (value as Store<number | false | undefined>)
     : undefined
+}
+
+/** Complete options at the adapter seam; runtime instances are never serialized. */
+export type ResolvedOptions = QueryObserverOptions<any, any, any, any, any> & {
+  enabled: boolean
+}
+
+export function resolveQueryOptions(options: {
+  queryKey: EffectorQueryKey
+  enabled?: StoreOrValue<boolean>
+  refetchInterval?: unknown
+  name?: string
+}): Store<ResolvedOptions> {
+  const { queryKey, enabled, refetchInterval, name: _name, ...rest } = options
+  const $key = resolveKey(queryKey)
+  const $enabled = resolveEnabled(enabled)
+  const $interval = is.store(refetchInterval)
+    ? refetchInterval
+    : createStore(refetchInterval, { skipVoid: false, serialize: 'ignore' })
+  return combine({ key: $key, enabled: $enabled, interval: $interval },
+    ({ key, enabled, interval }) => ({
+      ...rest,
+      queryKey: key,
+      enabled: enabled && (rest as ResolvedOptions).queryFn !== skipToken,
+      refetchInterval: interval,
+      notifyOnChangeProps: 'all',
+    } as ResolvedOptions))
 }
