@@ -19,7 +19,66 @@ function createQuery<TQueryFnData, TError = Error, TData = TQueryFnData>(
 ): QueryResult<TData, TError>
 ```
 
-## Options
+## Factory form
+
+Use `source` + `query` to consume an existing options factory:
+
+```ts
+const todoQuery = createQuery({
+  name: 'todo.detail',
+  source: { todoId: $todoId },
+  query: todoOptions,
+  enabled: $isEnabled,
+  refetchInterval: $pollingInterval,
+})
+
+// The explicit-client overload also accepts the factory form.
+const explicit = createQuery(queryClient, {
+  source: $todoId,
+  query: todoId => todoOptions({ todoId }),
+})
+```
+
+The existing `queryKey` form is called **inline**. Both forms return the same
+`QueryResult`; mixing their fields is a type error.
+
+- `source` is one `Store<T>` or a shallow shape of stores. Readonly derived stores
+  from `combine`/`map` are supported. The callback receives plain resolved values.
+- `query` is pure and synchronous. It runs during options resolution and source
+  changes, even while disabled. Put network work in `queryFn`.
+- The complete result is applied together. A source change updates options;
+  TanStack decides whether fetching is needed. A selector-only change at the same
+  key updates the projection without forcing a request.
+- Top-level `name`, `enabled`, and `refetchInterval` are supported. All other
+  options, including `select`, belong inside the factory result.
+- A defined top-level override replaces its factory counterpart. `false` is an
+  override; `undefined` inherits. This also applies to a polling store becoming
+  `undefined`.
+- `enabled` remains boolean. Use `combine` for derived conditions. Native helper
+  return types are accepted even though their optional `enabled` type includes
+  callbacks. An actual callback without a boolean override throws a diagnostic;
+  the adapter does not evaluate it.
+- Structured plain query keys work. Nested stores or framework refs in returned
+  options are not resolved automatically.
+
+See [reusing factories](/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
+for consumer composition and inference examples.
+
+## Observer options policy
+
+Both forms use `notifyOnChangeProps: 'all'` for their observers, including when
+client defaults or the factory request a narrower notification filter. Effector
+stores and completion events need all relevant transitions; UI consumers can
+subscribe to the stores they need. Input options/defaults are never mutated.
+
+TanStack owns cache, fetching, retry and observer options. Effector owns source
+resolution, scoped subscriptions and stores/events. UI integration owns rendering,
+Suspense and error presentation. Passing `throwOnError` or
+`experimental_prefetchInRender` does not install React behavior into an Effector
+model. Native helper types can contain UI-only fields; they do not control the
+model's activation. Use `mounted`/`unmounted` for ownership.
+
+## Inline options
 
 `CreateQueryOptions` extends `QueryObserverOptions` from `@tanstack/query-core`, with these adaptations:
 
@@ -34,9 +93,10 @@ function createQuery<TQueryFnData, TError = Error, TData = TQueryFnData>(
 `EffectorQueryKey`:
 
 ```ts
-type EffectorQueryKey = ReadonlyArray<
-  StoreOrValue<string | number | bigint | boolean | null | undefined | object>
->
+type ReactiveKey<K extends QueryKey> = {
+  readonly [P in keyof K]: StoreOrValue<K[P]>
+}
+type EffectorQueryKey = ReactiveKey<QueryKey>
 ```
 
 ## Cancellation

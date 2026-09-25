@@ -42,3 +42,11 @@ first reload: no client-side fetch to PokéAPI.
 `mount()` registers focus / online event listeners on the global `window`.
 The server has no window — calling it would either no-op or throw. We
 mount the client-side `QueryClient` inside `HydrationProvider` instead.
+
+## Shared options factories
+
+The `/migration` page uses `src/model/migration.qo.ts` from both native React
+Query and `createQuery({ source: {}, query: migrationListOptions })`. Its key
+also types the toolbar's `setQueryData` call. The route prefetches through the
+Effector model into the shared client; direct QueryClient consumers can use
+`queryClient.fetchQuery(migrationListOptions())` with the same definition.

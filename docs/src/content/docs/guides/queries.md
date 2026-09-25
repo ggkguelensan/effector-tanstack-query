@@ -219,3 +219,87 @@ userQuery.unmounted() // last owner: cancels in-flight, releases observer
 ```
 
 In React, the [`useQuery`](/effector-tanstack-query/react/use-query/) hook calls these for you.
+
+
+## Reusing query options factories
+
+A definition accepts ordinary values and keeps its key, function and shared
+policies together. Optional `.qk` / `.qo` filenames are application conventions.
+
+```ts
+const todoOptions = ({ todoId }: { todoId: number }) => queryOptions({
+  queryKey: ['todos', 'detail', { todoId }],
+  queryFn: ({ signal }) => fetchTodo(todoId, { signal }),
+  staleTime: 60_000,
+})
+
+// Imperative consumer / server loader:
+await queryClient.fetchQuery(todoOptions({ todoId: 1 }))
+
+// Native React consumer:
+useQuery({ ...todoOptions({ todoId }), enabled: isEnabled })
+
+// Effector consumer:
+const $enabled = combine($todoId, $routeActive, (id, active) => id > 0 && active)
+const todoQuery = createQuery({
+  name: 'todo.detail',
+  source: { todoId: $todoId },
+  query: todoOptions,
+  enabled: $enabled,
+})
+```
+
+This supports introducing Effector into an existing TanStack app and introducing
+portable definitions into an Effector app. All consumers must use the same
+QueryClient to share the cache. Create a separate client and Effector scope per
+SSR request; pass that client through `$queryClient` in the scope. Prefetch reads
+current scoped options; use `prefetchQueries` when both serialized Effector state
+and Query cache data are needed.
+
+The model does not require the adapter's React `useQuery`. With a UI lifetime
+owner, bind `mounted` and `unmounted` to its start/stop events through `sample`,
+and read `$data`, `$isFetching` and `$error` using the UI's Effector bindings.
+Always dispatch into the owning scope. Native option callbacks are ordinary JS
+callbacks; use scope binding when they dispatch Effector units.
+
+### Composing select
+
+Passing a ready-made factory requires no extra wrapper. Composing a new callback
+inside another callback can limit TypeScript's contextual inference. A checked
+workaround is annotating the outer parameter:
+
+```ts
+const titleQuery = createQuery({
+  source: $todoId,
+  query: (todoId: number) => ({
+    ...todoOptions({ todoId }),
+    select: todo => todo.title,
+  }),
+})
+```
+
+Alternatively, use a typed selector, or a helper at the composition site:
+
+```ts
+query: todoId => queryOptions({
+  ...todoOptions({ todoId }),
+  select: todo => todo.title,
+})
+```
+
+These are inference workarounds, not a requirement to wrap every factory.
+`select` changes this consumer's data; cache access through the key remains typed
+as the raw query data. Top-level `select` in the factory form is not supported.
+
+### Disabled and nullable parameters
+
+`enabled: false` prevents automatic execution; it does not prevent factory
+resolution or make a nullable source non-null. Include changing dependencies in
+`source` and handle missing parameters in the definition (for example with
+`skipToken`). A skipped query has no runnable function; `refresh` does not turn it
+into a fetch. Here `refresh` invalidates active queries, while `prefetch` respects
+the adapter's boolean `enabled` gate.
+
+Rule of thumb: use **inline** when defining a key in place, **factory** when
+reusing an options definition, and **createQueries** for one query per source
+item. See the Next.js migration playground for two consumers of one definition.

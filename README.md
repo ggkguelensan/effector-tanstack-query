@@ -51,3 +51,16 @@ Runnable apps in [`examples/`](./examples):
 ## License
 
 MIT
+
+### Reusing options factories
+
+`createQuery` and `createInfiniteQuery` support both **inline** options and a
+**factory** form: `createQuery({ source: { todoId: $todoId }, query: todoOptions })`.
+Factories receive plain values and can also be consumed by QueryClient and
+native UI hooks. Core exports `queryOptions` / `infiniteQueryOptions`; no React
+dependency is required. `enabled` stays boolean or a boolean store at the
+adapter level; use `combine` for derived conditions.
+
+See [factory usage and inference](https://ilyaagarkov.github.io/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
+and [portable helpers](https://ilyaagarkov.github.io/effector-tanstack-query/api/query-options/).
+The supported Query Core floor is 5.100.10; TypeScript 5.7+ is tested.

@@ -28,7 +28,29 @@ function createInfiniteQuery<
 ): InfiniteQueryResult<TData, TError, TPageParam>
 ```
 
-## Options
+## Factory form
+
+```ts
+const postsQuery = createInfiniteQuery({
+  name: 'posts',
+  source: { category: $category },
+  query: postsOptions,
+  enabled: $isEnabled,
+})
+```
+
+`postsOptions` can return plain options or the result of
+[`infiniteQueryOptions`](/effector-tanstack-query/api/query-options/).
+`initialPageParam`, `getNextPageParam`, `getPreviousPageParam`, `select`, and other
+TanStack options belong in that factory result. Source changes apply the whole
+object, including page functions. Keys continue to identify the cached page set.
+
+The source shapes, boolean `enabled`, override precedence, explicit-client
+variant, notification policy and inference guidance are the same as
+[`createQuery`](/effector-tanstack-query/api/create-query/#factory-form).
+The inline form remains supported with its existing generic order.
+
+## Inline options
 
 `CreateInfiniteQueryOptions` extends `InfiniteQueryObserverOptions`:
 
