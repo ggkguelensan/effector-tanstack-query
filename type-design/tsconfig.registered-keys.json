@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./registered-keys.repro.ts"
+  ],
+  "exclude": []
+}

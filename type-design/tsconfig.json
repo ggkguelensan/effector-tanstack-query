@@ -1,0 +1,23 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@effector-tanstack-query/core": [
+        "../packages/core/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "./*.ts",
+    "./helpers/**/*.ts",
+    "./fixtures/**/*.ts",
+    "./.generated/legacy-*.test-d.ts"
+  ],
+  "exclude": [
+    "./registered.test-d.ts",
+    "./*.repro.ts",
+    "./.generated/registered-keys-fixed.test-d.ts"
+  ]
+}
