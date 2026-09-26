@@ -1,6 +1,6 @@
 ---
 title: Queries
-description: Connect reactive parameters, reuse options factories, and control query loading with Effector.
+description: Reactive query keys, enabled, select, placeholderData, polling, and dependent queries.
 ---
 
 This guide covers reactive query models and common loading patterns. Set up a

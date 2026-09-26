@@ -1,6 +1,6 @@
 ---
 title: Infinite queries
-description: Load more pages, handle pagination states, and build bidirectional lists with Effector.
+description: Paginated and bidirectional data with createInfiniteQuery, fetchNextPage, and maxPages.
 ---
 
 Build a list that loads another page on demand. Start with a configured
