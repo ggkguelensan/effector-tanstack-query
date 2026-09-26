@@ -15,11 +15,12 @@ import { createStore } from 'effector'
 import { createInfiniteQuery } from '@effector-tanstack-query/core'
 
 type Post = { id: number; title: string }
+type PostsPage = { items: Post[]; nextCursor: number | null }
 
-declare function fetchPosts(
+declare function getPosts(
   params: { category: string; cursor: number },
   options?: { signal?: AbortSignal },
-): Promise<{ items: Post[]; nextCursor: number | null }>
+): Promise<PostsPage>
 
 const $category = createStore('books')
 
@@ -28,7 +29,7 @@ const postsQuery = createInfiniteQuery({
   queryKey: ['posts', $category],
   initialPageParam: 0,
   queryFn: ({ queryKey: [, category], pageParam, signal }) =>
-    fetchPosts({ category, cursor: pageParam }, { signal }),
+    getPosts({ category, cursor: pageParam }, { signal }),
   getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
 })
 ```
@@ -40,14 +41,17 @@ key keeps each category's pages in a separate cache entry.
 
 ```ts
 import { createStore } from 'effector'
-import { createInfiniteQuery, infiniteQueryOptions } from '@effector-tanstack-query/core'
+import { createInfiniteQuery } from '@effector-tanstack-query/core'
+import { infiniteQueryOptions } from '@effector-tanstack-query/core'
+// or: import { infiniteQueryOptions } from '@tanstack/react-query'
 
 type Post = { id: number; title: string }
+type PostsPage = { items: Post[]; nextCursor: number | null }
 
-declare function fetchPosts(
+declare function getPosts(
   params: { category: string; cursor: number },
   options?: { signal?: AbortSignal },
-): Promise<{ items: Post[]; nextCursor: number | null }>
+): Promise<PostsPage>
 
 const $category = createStore('books')
 
@@ -56,7 +60,7 @@ const postsOptions = ({ category }: { category: string }) =>
     queryKey: ['posts', category],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
-      fetchPosts({ category, cursor: pageParam }, { signal }),
+      getPosts({ category, cursor: pageParam }, { signal }),
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
   })
 
@@ -197,9 +201,13 @@ the factory:
 | --- | --- | --- |
 | `initialPageParam` | `TPageParam` | Required parameter for the first page |
 | `queryFn` | `(context: QueryFunctionContext<TQueryKey, TPageParam>) => TQueryFnData \| Promise<TQueryFnData>` | Loads one page; receives `pageParam`, the resolved `queryKey` and `signal`. Can also come from QueryClient defaults |
-| `getNextPageParam` | `(lastPage: TQueryFnData, allPages: TQueryFnData[], lastPageParam: TPageParam, allPageParams: TPageParam[]) => TPageParam \| null \| undefined` | Required; `null` or `undefined` ends forward pagination |
-| `getPreviousPageParam` | `(firstPage: TQueryFnData, allPages: TQueryFnData[], firstPageParam: TPageParam, allPageParams: TPageParam[]) => TPageParam \| null \| undefined` | Optional; `null` or `undefined` ends backward pagination |
+| `getNextPageParam` | `GetNextPageParamFunction<TPageParam, TQueryFnData>` | Required; `null` or `undefined` ends forward pagination |
+| `getPreviousPageParam` | `GetPreviousPageParamFunction<TPageParam, TQueryFnData>` | Optional; `null` or `undefined` ends backward pagination |
 | `maxPages` | `number` | Limits retained pages; loading beyond the limit removes a page from the opposite end. `0` or omission means no limit |
+
+The cursor callbacks receive `(lastPage, allPages, lastPageParam, allPageParams)`
+and `(firstPage, allPages, firstPageParam, allPageParams)`, respectively. Both
+return `TPageParam | null | undefined`.
 
 `TPageParam` connects the initial parameter, `queryFn`'s `pageParam` and the
 cursor callbacks. It can be a number, string or another cursor type.
@@ -269,25 +277,10 @@ the cache but does not populate model stores or emit lifecycle events. For SSR
 loading that also populates stores, use
 [`prefetchQueries`](/effector-tanstack-query/api/prefetch-queries/).
 
-## Loading pages
-
-The model must be mounted before pagination events can load pages. React hooks
-manage mounting automatically. Connect a UI event through `sample`:
-
-```ts
-import { createEvent, sample } from 'effector'
-
-const loadMoreClicked = createEvent()
-
-sample({
-  clock: loadMoreClicked,
-  filter: postsQuery.$hasNextPage,
-  target: postsQuery.fetchNextPage,
-})
-```
-
-Dispatch the event in the model's scope. For a button that also prevents loading
-while a request is active, see the [loading more guide](/effector-tanstack-query/guides/infinite-queries/#loading-more).
+Pagination events require a mounted observer and must be dispatched in its
+scope. React query hooks manage mounting automatically. See the
+[loading more recipe](/effector-tanstack-query/guides/infinite-queries/#loading-more)
+for connecting a button and handling loading states.
 
 ## Select
 

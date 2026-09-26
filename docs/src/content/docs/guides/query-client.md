@@ -3,7 +3,7 @@ title: QueryClient
 description: Register a default QueryClient or inject one per-scope for SSR.
 ---
 
-Every query and mutation is bound to a [`QueryClient`](https://tanstack.com/query/latest/docs/reference/QueryClient). This library exposes the client as an effector store — `$queryClient` — so factories can pull from it automatically and you can swap it per scope under SSR.
+Every query and mutation is bound to a [`QueryClient`](https://tanstack.com/query/latest/docs/reference/QueryClient). This library exposes the client as an effector store — `$queryClient` — so models can resolve it automatically and you can swap it per scope under SSR.
 
 ## Set a default client
 
@@ -18,7 +18,7 @@ queryClient.mount() // enables refetchOnWindowFocus / refetchOnReconnect
 setQueryClient(queryClient)
 ```
 
-After this, factories no longer need a client argument:
+Models use this client when no explicit client is passed:
 
 ```ts
 import { createQuery, createMutation } from '@effector-tanstack-query/core'
@@ -61,9 +61,9 @@ await allSettled(setQueryClient, { scope, params: queryClient })
 
 `allSettled(setQueryClient, { scope, params: qc })` fires the event inside the scope only, updating `$queryClient` for that scope.
 
-## Explicit client per factory
+## Explicit client per model
 
-If you want a factory locked to a specific client regardless of any scope override, pass it as the first argument:
+To bind a model to a specific client regardless of any scope override, pass the client as the first argument:
 
 ```ts
 const userQuery = createQuery(otherClient, {
@@ -72,7 +72,7 @@ const userQuery = createQuery(otherClient, {
   queryFn: fetchUser,
 })
 // `userQuery` always uses `otherClient` — fork({ values: [[$queryClient, ...]] })
-// has no effect on this factory.
+// has no effect on this model.
 ```
 
 Use this when you have multiple long-lived clients (e.g. one per microservice) and don't want them mixed up by accident.
