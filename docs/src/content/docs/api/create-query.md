@@ -1,123 +1,194 @@
 ---
 title: createQuery
-description: Create a query bound to a QueryClient and exposed as effector stores.
+description: Define a query inline or consume an options factory with reactive Effector parameters.
 ---
+
+Creates a query model with Effector stores for data and status, and events for
+loading and refreshing. Define its options **inline** or pass an options
+**factory** with a reactive `source`. Both forms return `QueryResult`.
+
+## Usage
+
+The examples below load the same todo. They share this store and API function:
+
+```ts
+import { createStore } from 'effector'
+
+type Todo = { id: number; title: string }
+const $todoId = createStore(1)
+
+async function fetchTodo(todoId: number, signal: AbortSignal): Promise<Todo> {
+  const response = await fetch(`/api/todos/${todoId}`, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+```
+
+### Inline
+
+Put the key and query function in the model. Stores at the top level of
+`queryKey` resolve to values before the query function runs.
 
 ```ts
 import { createQuery } from '@effector-tanstack-query/core'
 
-// Uses the default $queryClient (set via setQueryClient / fork values).
-function createQuery<TQueryFnData, TError = Error, TData = TQueryFnData>(
-  options: CreateQueryOptions<TQueryFnData, TError, TData>,
-): QueryResult<TData, TError>
-
-// Explicit client — locks the factory to this client; fork({ values })
-// overrides of $queryClient do not apply.
-function createQuery<TQueryFnData, TError = Error, TData = TQueryFnData>(
-  queryClient: QueryClient,
-  options: CreateQueryOptions<TQueryFnData, TError, TData>,
-): QueryResult<TData, TError>
+const todoQuery = createQuery({
+  name: 'todo',
+  queryKey: ['todos', $todoId],
+  queryFn: ({ queryKey: [, todoId], signal }) => fetchTodo(todoId, signal),
+  staleTime: 60_000,
+})
 ```
 
-## Factory form
+<a id="factory-form"></a>
 
-Use `source` + `query` to consume an existing options factory:
+### Factory
+
+Keep reusable options in a function that accepts ordinary values. The adapter
+calls it with the current values from `source`.
 
 ```ts
+import { createQuery, queryOptions } from '@effector-tanstack-query/core'
+
+const todoOptions = ({ todoId }: { todoId: number }) => queryOptions({
+  queryKey: ['todos', todoId],
+  queryFn: ({ signal }) => fetchTodo(todoId, signal),
+  staleTime: 60_000,
+})
+
 const todoQuery = createQuery({
-  name: 'todo.detail',
+  name: 'todo',
   source: { todoId: $todoId },
   query: todoOptions,
-  enabled: $isEnabled,
+})
+```
+
+When `$todoId` changes, the factory returns the options for that id, including a
+new query function. TanStack uses the resulting key and cache state to decide
+whether to fetch.
+
+[`queryOptions`](/effector-tanstack-query/api/query-options/) is optional.
+Existing React Query factories and functions returning plain options work
+directly. See [reusing factories](/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
+for sharing a definition between consumers.
+
+### QueryClient and activation
+
+Both forms accept either `createQuery(options)` or
+`createQuery(queryClient, options)`. Without an explicit client, the model reads
+[`$queryClient`](/effector-tanstack-query/guides/query-client/) from its Effector
+scope. An explicit client takes precedence over the scope's client.
+
+Creating a model does not start its observer. Call `mounted` to subscribe and
+`unmounted` to release that subscription. React hooks do this automatically.
+For scoped applications, dispatch these events in the owning scope.
+
+```ts
+import { allSettled, fork } from 'effector'
+import { QueryClient } from '@tanstack/query-core'
+import { $queryClient } from '@effector-tanstack-query/core'
+
+const queryClient = new QueryClient()
+queryClient.mount()
+const scope = fork({ values: [[$queryClient, queryClient]] })
+
+await allSettled(todoQuery.mounted, { scope })
+// Read with scope.getState(todoQuery.$data), or useUnit in the UI.
+await allSettled(todoQuery.unmounted, { scope })
+```
+
+Each scope has its own observer. Multiple mounts share it; the last matching
+unmount releases it. Scopes using the same QueryClient share its cache. Use a
+separate client and scope for each SSR request.
+
+## Options
+
+### Shared options
+
+| Field | Accepted values | Behavior |
+| --- | --- | --- |
+| `name` | `string` | Gives model stores stable SIDs for SSR; use a unique name per model |
+| `enabled` | `boolean` or `Store<boolean>` | Controls automatic fetching; defaults to `true` when neither the model nor factory supplies it |
+| `refetchInterval` | Number of milliseconds, `false`, a TanStack interval callback, or `Store<number \| false \| undefined>` | Sets polling; `false` stops it |
+
+Use `combine` for a condition derived from other stores. The adapter supports
+boolean `enabled`, not a native `(query) => boolean` callback. If a factory
+returns that callback, supply a boolean override at the consumer.
+
+### Inline options
+
+`CreateQueryOptions` accepts TanStack `QueryObserverOptions`, with reactive
+`queryKey`, `enabled` and `refetchInterval`:
+
+| Field | Behavior |
+| --- | --- |
+| `queryKey` | Required array; each top-level element can be a store or plain value |
+| `queryFn` | Receives the resolved key, `signal` and the native query context; returns data or a promise. Can be supplied through QueryClient defaults |
+| Other TanStack options | Set `select`, `staleTime`, `retry`, `placeholderData`, `meta`, etc. directly on the model definition |
+
+Nested objects in a key are supported. To make their contents reactive, put a
+`combine` store at the top level of the key; nested stores are not unwrapped.
+See [reactive query keys](/effector-tanstack-query/guides/queries/#reactive-query-keys).
+
+### Factory options
+
+| Field | Behavior |
+| --- | --- |
+| `source` | Required store or shallow object of stores, including derived stores |
+| `query` | Required synchronous function receiving the resolved source and returning query options |
+
+A single store is passed as its value: `source: $todoId` pairs with
+`query: todoId => todoOptions({ todoId })`. A store shape becomes a plain object,
+as in the usage example. Use `source: {}` for a factory without parameters.
+
+Place `queryKey`, `queryFn`, `select`, `staleTime` and other TanStack options in
+the factory result. The callback can run before mounting and while disabled;
+keep it pure and put network work in `queryFn`.
+
+### Factory overrides
+
+A defined top-level `enabled` or `refetchInterval` replaces the factory's value.
+`false` is an override; `undefined` uses the factory value. The same rule applies
+when an override store changes.
+
+```ts
+import { combine, createStore } from 'effector'
+
+const $routeActive = createStore(false)
+const $enabled = combine($todoId, $routeActive, (id, active) => id > 0 && active)
+const $pollingInterval = createStore<number | false>(false)
+
+const activeTodoQuery = createQuery({
+  name: 'active-todo',
+  source: { todoId: $todoId },
+  query: todoOptions,
+  enabled: $enabled,
   refetchInterval: $pollingInterval,
 })
-
-// The explicit-client overload also accepts the factory form.
-const explicit = createQuery(queryClient, {
-  source: $todoId,
-  query: todoId => todoOptions({ todoId }),
-})
 ```
 
-The existing `queryKey` form is called **inline**. Both forms return the same
-`QueryResult`. A `queryKey` selects inline; otherwise `source` + `query` selects
-factory. Existing inline option variables/spreads may retain unrelated extra
-fields called `source` or `query`; these do not activate the factory form.
+To derive options together, include their inputs in `source` and return the
+values from `query`. See [consumer options](/effector-tanstack-query/guides/queries/#consumer-options).
 
-- `source` is one `Store<T>` or a shallow shape of stores. Readonly derived stores
-  from `combine`/`map` are supported. The callback receives plain resolved values.
-- `query` is pure and synchronous. It runs during options resolution and source
-  changes, even while disabled. Put network work in `queryFn`.
-- The complete result is applied together. A source change updates options;
-  TanStack decides whether fetching is needed. A selector-only change at the same
-  key updates the projection without forcing a request.
-- Top-level `name`, `enabled`, and `refetchInterval` are supported. All other
-  options, including `select`, belong inside the factory result.
-- A defined top-level override replaces its factory counterpart. `false` is an
-  override; `undefined` inherits. This also applies to a polling store becoming
-  `undefined`.
-- `enabled` remains boolean. Use `combine` for derived conditions. Native helper
-  return types are accepted even though their optional `enabled` type includes
-  callbacks. An actual callback without a boolean override throws a diagnostic;
-  the adapter does not evaluate it.
-- Structured plain query keys work. Nested stores or framework refs in returned
-  options are not resolved automatically.
+<a id="observer-options-policy"></a>
 
-See [reusing factories](/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
-for consumer composition and inference examples.
+### Option updates and notifications
 
-## Observer options policy
+| | Inline | Factory |
+| --- | --- | --- |
+| Reactive inputs | Top-level key stores, enabled and polling stores | Source and top-level override stores |
+| Options on update | Patches key/enabled/polling on the observer's resolved options; other resolved values are retained | Applies the full factory result; omitted fields use QueryClient defaults for the current key |
+| `notifyOnChangeProps` | Uses the supplied option or client default | Uses `'all'`, including when the factory or client requests a narrower filter |
 
-The factory form uses `notifyOnChangeProps: 'all'` for its observers, including when
-client defaults or the factory request a narrower notification filter. Effector
-stores and completion events need all relevant transitions; UI consumers can
-subscribe to the stores they need. Input options/defaults are never mutated.
+A factory change to `select` alone updates the selected data without forcing a
+fetch. Other updates follow TanStack's fetch policies.
 
-Inline preserves its existing observer behavior: notification filters are passed
-through, and key/enabled/polling updates patch the observer's resolved options.
-Factory updates replace the complete options object, so removed fields can fall
-back to defaults for the current key. These policies differ to keep existing
-inline applications backward compatible.
+Notification filters in inline queries can suppress store and event updates.
+Factory models receive all observer notifications; UI consumers can subscribe
+to individual Effector stores. Input options and client defaults are not mutated.
 
-TanStack owns cache, fetching, retry and observer options. Effector owns source
-resolution, scoped subscriptions and stores/events. UI integration owns rendering,
-Suspense and error presentation. Passing `throwOnError` or
-`experimental_prefetchInRender` does not install React behavior into an Effector
-model. Native helper types can contain UI-only fields; they do not control the
-model's activation. Use `mounted`/`unmounted` for ownership.
-
-## Inline options
-
-`CreateQueryOptions` extends `QueryObserverOptions` from `@tanstack/query-core`, with these adaptations:
-
-| Field             | Type                                                                            | Notes                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `queryKey`        | `EffectorQueryKey`                                                              | Array; elements may be `Store` or value                                                |
-| `enabled`         | `boolean \| Store<boolean>`                                                     | Reactive — accepts a store                                                             |
-| `refetchInterval` | `number \| false \| ((q) => number \| false) \| Store<number \| false \| undefined>` | Static, function form (TanStack Query), or **Store form** for runtime polling toggling |
-| `name`            | `string` (recommended)                                                          | Stable name for SID-based SSR                                                          |
-| ...rest           | All other `QueryObserverOptions`                                                | `staleTime`, `gcTime`, `retry`, `select`, `refetchOnMount`, `refetchOnWindowFocus`, `refetchOnReconnect`, `placeholderData`, `meta`, `networkMode`, ... |
-
-`EffectorQueryKey`:
-
-```ts
-type EffectorQueryKey = ReadonlyArray<
-  StoreOrValue<string | number | bigint | boolean | null | undefined | object>
->
-```
-
-## Cancellation
-
-`queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` (or any abortable API) and in-flight requests are cancelled automatically when a key change or the last matching `unmounted()` removes the final observer of that cache entry, or on a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event — no extra wiring.
-
-```ts
-const userQuery = createQuery({
-  name: 'user',
-  queryKey: ['user', $userId],
-  queryFn: ({ queryKey, signal }) =>
-    fetch(`/api/user/${queryKey[1]}`, { signal }).then((r) => r.json()),
-})
-```
+Options such as `throwOnError` belong to the UI consumer. They do not change
+activation or rendering behavior of the core model.
 
 ## Return value (`QueryResult<TData, TError>`)
 
@@ -133,109 +204,91 @@ const userQuery = createQuery({
 | `$isPlaceholderData` | `Store<boolean>`                              | Showing placeholder                      |
 | `$fetchStatus`       | `Store<'fetching' \| 'paused' \| 'idle'>`     | Underlying fetch status                  |
 | `mounted`            | `EventCallable<void>`                         | Bump reference count; the first mount subscribes the observer |
-| `unmounted`          | `EventCallable<void>`                         | Decrement; the last unmount unsubscribes + cancels inflight |
-| `refresh`            | `EventCallable<void>`                         | Invalidate + refetch                     |
+| `unmounted`          | `EventCallable<void>`                         | Release one owner; the last unmount unsubscribes |
+| `refresh`            | `EventCallable<void>`                         | Invalidate the key and refetch active queries                     |
 | `prefetch`           | `EventCallable<void>`                         | `queryClient.fetchQuery` + **awaits**; for SSR / route loaders |
 | `$observer`          | `Store<QueryObserver<TData, TError> \| null>` | Per-scope observer (created on `mounted()`) |
 | `$queryClient`       | `Store<QueryClient \| null>`                  | Resolved client for this query           |
 | `finished`           | `{ success: Event<TData>; failure: Event<TError> }` | Lifecycle events for `sample`-driven reactions |
 
+`$data` contains the `select` result, or the query function's data when there is
+no selector. It includes `undefined` before the observer populates the model,
+even when options specify `initialData`. The QueryClient cache holds the raw data.
+
 ## Lifecycle events
 
-`finished.success` and `finished.failure` let you react to observed cache
-updates from module-level `sample` wiring. They use the observer result
-timestamps; they are not an exactly-once event stream for network requests.
-
-| Event              | Fires when…                                                            | Payload  |
-| ------------------ | --------------------------------------------------------------------- | -------- |
-| `finished.success` | An observer notification has success status, a newer `dataUpdatedAt`, and non-placeholder data | `TData` (post-`select`) |
-| `finished.failure` | An observer notification has error status and a newer `errorUpdatedAt` | `TError` |
+Use `finished.success` and `finished.failure` as clocks for `sample`:
 
 ```ts
-const userQuery = createQuery({
-  name: 'user',
-  queryKey: ['user', $userId],
-  queryFn: ({ queryKey }) => fetchUser(queryKey[1]),
-})
-
-// Load dependent data after an observed success.
 sample({
-  clock: userQuery.finished.success,
-  target: loadSettings,
-})
-
-// Toast on an observed failure.
-sample({
-  clock: userQuery.finished.failure,
-  fn: (err) => `Failed: ${err.message}`,
-  target: showToast,
+  clock: todoQuery.finished.success,
+  fn: todo => todo.id,
+  target: loadComments,
 })
 ```
 
-The payload is the data / error directly (not `{ params, result }` like a
-mutation). Success carries the selected data; the QueryClient cache retains
-the original queryFn data.
+Success carries selected data; failure carries the error. An event is emitted
+when an observer notification reports the corresponding status and an advancing
+`dataUpdatedAt` or `errorUpdatedAt` timestamp.
 
-**Baseline.** The first observation after each mount establishes the timestamp
-baseline without emitting either event. This includes SSR-hydrated cache and
-initial data. Placeholder data never emits `success`. Each observer in each
-fork tracks its own baseline.
-
-**Cache updates and notification limits.** Fetches, `refresh()`, pagination and
-`setQueryData` can emit these events, including updates initiated elsewhere
-through a shared QueryClient. A timestamp must advance beyond the last recorded
-one: two resolutions in the same millisecond do not necessarily produce two
-events. In the inline form, `notifyOnChangeProps` also controls which observer
-notifications reach the adapter, so it can suppress store updates and events.
-For example, `['data']` can hide fetching transitions and a refetch that returns
-structurally equal data.
-
-`prefetch` without a mounted observer only populates the cache and emits no
-lifecycle events. If a model is already observing that cache, it can receive
-the resulting update through its subscription.
+- The first observation on mount establishes a baseline without emitting events.
+  Hydrated/initial cache data and placeholder data do not emit success on mount.
+- `setQueryData` can emit success, including writes from another consumer of the
+  same QueryClient.
+- Notification filters and unchanged timestamps can suppress events. There is
+  no guarantee of one event per request, including completions in the same millisecond.
 
 ## `prefetch` vs `mounted`
 
-| Trigger    | What it does                                                   | `allSettled` returns when…           | Use case                                     |
-| ---------- | -------------------------------------------------------------- | ------------------------------------ | -------------------------------------------- |
-| `mounted`  | Creates the Observer, subscribes — initial fetch runs in background | The Observer is set up               | Component mount, in-page subscription        |
-| `prefetch` | Calls `queryClient.fetchQuery` and **awaits** the result       | The query has resolved (data cached) | SSR prefetch, route loaders, on-hover prime  |
+| Event | What it does | When `allSettled` completes |
+| --- | --- | --- |
+| `mounted` | Subscribes an observer, populates stores and may start a background fetch | After observer setup, without waiting for that fetch |
+| `prefetch` | Fetches or reuses fresh data through QueryClient | After the fetch completes or fails |
 
-A typical SSR flow uses both:
+Prefetch reads current scoped options and does nothing when `enabled` is false.
+Without an observer it fills the cache, but does not populate model stores or
+emit lifecycle events. A mounted model can observe the resulting cache update.
+
+For SSR, [`prefetchQueries`](/effector-tanstack-query/api/prefetch-queries/) awaits
+prefetch and then mounts the models so their stores can be serialized:
 
 ```ts
-await allSettled(userQuery.prefetch, { scope })  // populates qc cache
-await allSettled(userQuery.mounted, { scope })   // dispatches into $data, $status, ...
+import { prefetchQueries } from '@effector-tanstack-query/core'
+
+await prefetchQueries([todoQuery], { scope })
 ```
 
-`prefetch` is a no-op when `enabled` is `false`.
+## Cancellation
+
+Pass `queryFn`'s `signal` to your request, as in the usage examples. When the last
+observer leaves a cache entry because of a key change or unmount, TanStack can
+abort the consumed signal. If another observer still needs that entry, its
+request remains active. To cancel explicitly, use
+[`createCancel`](/effector-tanstack-query/api/cache-actions/).
 
 ## Generic inference
 
-```ts
-// TQueryFnData inferred from queryFn
-const q1 = createQuery({
-  name: 'q1',
-  queryKey: ['x'],
-  queryFn: () => Promise.resolve({ id: 1, name: 'A' }),
-})
-// q1.$data: Store<{ id: number; name: string } | undefined>
-
-// TData narrowed via select
-const q2 = createQuery({
-  name: 'q2',
-  queryKey: ['x'],
-  queryFn: () => Promise.resolve({ id: 1, name: 'A' }),
-  select: (data) => data.name,
-})
-// q2.$data: Store<string | undefined>
-```
-
-Custom error type:
+Both forms infer data from the query function and selected data from `select`.
+Prefer a typed API function so these types flow through the definition:
 
 ```ts
-class HttpError extends Error { code = 0 }
-
-const q = createQuery<User, HttpError>({ /* ... */ })
-// q.$error: Store<HttpError | null>
+const titleQuery = createQuery({
+  name: 'todo-title',
+  source: $todoId,
+  query: (todoId: number) => ({
+    ...todoOptions({ todoId }),
+    select: todo => todo.title,
+  }),
+})
+// titleQuery.$data: Store<string | undefined>
 ```
+
+The outer parameter annotation helps TypeScript infer a selector composed with
+spread inside another callback. A ready-made factory needs no extra wrapper.
+See [composing select](/effector-tanstack-query/guides/queries/#composing-select)
+for alternatives.
+
+Inline accepts explicit generics in the order
+`<TQueryFnData, TError, TData, TQueryKey>`. Its error type defaults to `Error`.
+Factory calls infer errors from the returned options and otherwise use TanStack's
+`DefaultError`, including an application's registered default error.

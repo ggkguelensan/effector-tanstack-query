@@ -1,89 +1,162 @@
 ---
 title: createInfiniteQuery
-description: Create a paginated query with cursor-based or bidirectional pagination.
+description: Define an infinite query inline or with an options factory, and load pages through Effector events.
 ---
+
+Creates a query model for a list of pages. Use **inline** options or an options
+**factory** with a reactive `source`. Both forms return `InfiniteQueryResult`
+with query state and pagination events.
+
+## Usage
+
+The examples below load posts by category. They share this store and API function:
+
+```ts
+import { createStore } from 'effector'
+
+type Post = { id: number; title: string }
+type PostsPage = { items: Post[]; nextCursor: number | null }
+const $category = createStore('books')
+
+async function fetchPosts({ category, cursor, signal }: {
+  category: string
+  cursor: number
+  signal: AbortSignal
+}): Promise<PostsPage> {
+  const params = new URLSearchParams({ category, cursor: String(cursor) })
+  const response = await fetch(`/api/posts?${params}`, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+```
+
+### Inline
+
+Define the key, page function and cursor options in the model:
 
 ```ts
 import { createInfiniteQuery } from '@effector-tanstack-query/core'
 
-// Uses the default $queryClient.
-function createInfiniteQuery<
-  TQueryFnData = unknown,
-  TError = Error,
-  TPageParam = unknown,
-  TData = InfiniteData<TQueryFnData, TPageParam>,
->(
-  options: CreateInfiniteQueryOptions<TQueryFnData, TError, TPageParam, TData>,
-): InfiniteQueryResult<TData, TError, TPageParam>
-
-// Explicit client.
-function createInfiniteQuery<
-  TQueryFnData = unknown,
-  TError = Error,
-  TPageParam = unknown,
-  TData = InfiniteData<TQueryFnData, TPageParam>,
->(
-  queryClient: QueryClient,
-  options: CreateInfiniteQueryOptions<TQueryFnData, TError, TPageParam, TData>,
-): InfiniteQueryResult<TData, TError, TPageParam>
+const postsQuery = createInfiniteQuery({
+  name: 'posts',
+  queryKey: ['posts', $category],
+  initialPageParam: 0,
+  queryFn: ({ queryKey: [, category], pageParam, signal }) =>
+    fetchPosts({ category, cursor: pageParam, signal }),
+  getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+  staleTime: 60_000,
+})
 ```
 
-## Factory form
+Stores at the top level of `queryKey` resolve to ordinary values. The category
+is part of the key, so each category has its own cached page set.
+
+<a id="factory-form"></a>
+
+### Factory
+
+Define reusable page options in a function, then connect its parameters to stores:
 
 ```ts
+import {
+  createInfiniteQuery,
+  infiniteQueryOptions,
+} from '@effector-tanstack-query/core'
+
+const postsOptions = ({ category }: { category: string }) => infiniteQueryOptions({
+  queryKey: ['posts', category],
+  initialPageParam: 0,
+  queryFn: ({ pageParam, signal }) => fetchPosts({ category, cursor: pageParam, signal }),
+  getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+  staleTime: 60_000,
+})
+
 const postsQuery = createInfiniteQuery({
   name: 'posts',
   source: { category: $category },
   query: postsOptions,
-  enabled: $isEnabled,
 })
 ```
 
-`postsOptions` can return plain options or the result of
-[`infiniteQueryOptions`](/effector-tanstack-query/api/query-options/).
-`initialPageParam`, `getNextPageParam`, `getPreviousPageParam`, `select`, and other
-TanStack options belong in that factory result. Source changes apply the whole
-object, including page functions. Keys continue to identify the cached page set.
+When `$category` changes, `postsOptions` receives the new category as a string.
+The adapter applies all returned options, including the page function and cursor
+callbacks. Including category in the key separates its pages from other categories.
 
-The source shapes, boolean `enabled`, override precedence, explicit-client
-variant, notification policy and inference guidance are the same as
-[`createQuery`](/effector-tanstack-query/api/create-query/#factory-form).
-The inline form remains supported with its existing generic order.
+[`infiniteQueryOptions`](/effector-tanstack-query/api/query-options/) is optional.
+A factory can return a plain options object or use the native React Query helper.
+The same factory can be used with `queryClient.fetchInfiniteQuery` or a native
+`useInfiniteQuery` hook.
 
-## Inline options
+### QueryClient and activation
 
-`CreateInfiniteQueryOptions` extends `InfiniteQueryObserverOptions`:
+Both forms accept `createInfiniteQuery(options)` or
+`createInfiniteQuery(queryClient, options)`. An explicit client takes precedence;
+otherwise the model uses `$queryClient` from its Effector scope.
 
-| Field                  | Type                                                  | Notes                                  |
-| ---------------------- | ----------------------------------------------------- | -------------------------------------- |
-| `queryKey`             | `EffectorQueryKey`                                    | Same as `createQuery`                  |
-| `queryFn`              | `({ pageParam, queryKey, signal }) => Promise<TQueryFnData>` | First arg includes `pageParam` |
-| `getNextPageParam`     | `(lastPage, allPages, lastParam, allParams) => TPageParam \| undefined` | Required |
-| `getPreviousPageParam` | `(firstPage, allPages, firstParam, allParams) => TPageParam \| undefined` | Optional, for bidirectional |
-| `initialPageParam`     | `TPageParam`                                          | Required                               |
-| `maxPages`             | `number`                                              | Cap on retained pages                  |
-| `enabled`              | `boolean \| Store<boolean>`                           | Reactive                               |
-| `name`                 | `string` (recommended)                                | Stable name for SID-based SSR          |
-| ...rest                | All other `InfiniteQueryObserverOptions`              | `select`, `staleTime`, `placeholderData`, ... |
+Call `mounted` before driving pagination and `unmounted` when the consumer is
+finished. React hooks manage these events automatically. For scoped applications,
+dispatch into the owning scope. See
+[QueryClient and activation](/effector-tanstack-query/api/create-query/#queryclient-and-activation)
+for setup and shared ownership.
 
-## Cancellation
+## Options
 
-Like `createQuery`, the page `queryFn` receives the standard TanStack [`AbortSignal`](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) as `context.signal`. Forward it to `fetch` and in-flight page requests cancel automatically when a key change or the last matching `unmounted()` removes the final observer of that cache entry, or on a [`createCancel`](/effector-tanstack-query/api/cache-actions/) event.
+### Shared options
 
-```ts
-const postsQuery = createInfiniteQuery({
-  name: 'posts',
-  queryKey: ['posts'],
-  queryFn: ({ pageParam, signal }) =>
-    fetch(`/api/posts?page=${pageParam}`, { signal }).then((r) => r.json()),
-  getNextPageParam: (last) => last.next,
-  initialPageParam: 0,
-})
-```
+| Field | Accepted values | Behavior |
+| --- | --- | --- |
+| `name` | `string` | Stable SIDs for model stores; use a unique name per model |
+| `enabled` | `boolean` or `Store<boolean>` | Controls automatic fetching |
+| `refetchInterval` | Number of milliseconds, `false`, a TanStack interval callback, or `Store<number \| false \| undefined>` | Sets polling; `false` stops it |
 
-## Return value (`InfiniteQueryResult<TData, TError, TPageParam>`)
+In the factory form, defined top-level `enabled` and `refetchInterval` values
+replace the factory values. `undefined` inherits; `false` overrides. Use
+`combine` to derive a boolean condition; native callback `enabled` is not evaluated.
 
-In addition to the base `QueryResult` fields:
+### Inline options
+
+`CreateInfiniteQueryOptions` accepts TanStack infinite observer options. Its
+`queryKey` resolves top-level stores, and enabled/polling can be stores.
+Pass the pagination options below directly in the model definition.
+
+### Factory options
+
+| Field | Behavior |
+| --- | --- |
+| `source` | Required store or shallow object of stores |
+| `query` | Required pure, synchronous function receiving plain source values and returning infinite query options |
+
+Use `source: $category` with `query: category => postsOptions({ category })`, or
+the store shape shown above. Use `source: {}` for a factory without parameters.
+Put pagination options, `select` and other TanStack options in the factory result.
+The factory runs during options resolution, including while disabled; network
+work belongs in `queryFn`.
+
+### Pagination options
+
+| Field | Behavior |
+| --- | --- |
+| `queryKey` | Identifies the cached page set; include parameters such as category or filters |
+| `queryFn` | Loads one page using `pageParam`, the resolved key and `signal`; can also come from QueryClient defaults |
+| `initialPageParam` | Required value passed to `queryFn` for the first page |
+| `getNextPageParam` | Required callback `(lastPage, allPages, lastPageParam, allPageParams)` returning the next cursor; `null` or `undefined` means no next page |
+| `getPreviousPageParam` | Optional callback `(firstPage, allPages, firstPageParam, allPageParams)` returning the previous cursor for bidirectional pagination |
+| `maxPages` | Limits the retained pages; loading beyond the limit removes a page from the opposite end |
+| Other TanStack options | `select`, `staleTime`, `retry`, `placeholderData`, `meta`, etc. |
+
+Option updates and notification behavior follow
+[`createQuery`](/effector-tanstack-query/api/create-query/#option-updates-and-notifications):
+inline updates its reactive key/enabled/polling fields; factory applies the whole
+result and uses complete observer notifications. A factory selector-only change
+updates the projection without forcing a fetch.
+
+## Return value
+
+Both forms return `InfiniteQueryResult<TData, TError, TPageParam>`. Without
+`select`, `$data` contains `{ pages, pageParams }`, or `undefined` before the model
+has data. Each `pages` entry is the result of one query function call.
+
+In addition to the [query stores and events](/effector-tanstack-query/api/create-query/#return-value-queryresulttdata-terror):
 
 | Field                       | Type                  | Description                  |
 | --------------------------- | --------------------- | ---------------------------- |
@@ -97,42 +170,79 @@ In addition to the base `QueryResult` fields:
 | `fetchPreviousPage`         | `EventCallable<void>` | Trigger previous-page fetch  |
 | `prefetch`                  | `EventCallable<void>` | `queryClient.fetchInfiniteQuery` + awaits; for SSR — see [`createQuery#prefetch-vs-mounted`](/effector-tanstack-query/api/create-query/#prefetch-vs-mounted) |
 
-Plus `finished` — `{ success: Event<TData>; failure: Event<TError> }`, the
-lifecycle events shared with `createQuery` (see
-[Lifecycle events](/effector-tanstack-query/api/create-query/#lifecycle-events)).
-`finished.success` carries the full `TData` (the `InfiniteData` page set, or the
-`select` result). Page fetches and cache writes can emit it when an observer
-notification advances the data timestamp. The same baseline, timestamp and
-notification-filter limits as `createQuery` apply; it is not guaranteed to fire
-once per page request.
+
+`finished.success` carries the full selected data, rather than an individual
+page. It follows the same [lifecycle event rules](/effector-tanstack-query/api/create-query/#lifecycle-events)
+as `createQuery`, including the mount baseline and timestamp/notification limits.
+
+## Loading pages
+
+Once mounted, use `fetchNextPage` or `fetchPreviousPage`. In an Effector model,
+connect a UI event and guard against unavailable pages or an active request:
 
 ```ts
+import { combine, createEvent, sample } from 'effector'
+
+const loadMoreClicked = createEvent()
+const $canLoadMore = combine(
+  postsQuery.$hasNextPage,
+  postsQuery.$isFetching,
+  (hasNextPage, isFetching) => hasNextPage && !isFetching,
+)
+
 sample({
-  clock: postsQuery.finished.success,
-  target: trackPagesLoaded,
+  clock: loadMoreClicked,
+  filter: $canLoadMore,
+  target: postsQuery.fetchNextPage,
 })
 ```
 
-`$data` is `Store<TData | undefined>` where `TData` defaults to `InfiniteData<TQueryFnData, TPageParam>`. With `select`, it's whatever your selector returns.
+Dispatch `loadMoreClicked` from the same scope as the mounted model. Pagination
+events have no effect when the model has no observer. To await a server-side
+load, use `prefetch` or [`prefetchQueries`](/effector-tanstack-query/api/prefetch-queries/).
 
-## select
+## Select
+
+Use `select` to turn the page set into the data your consumer needs. In a factory
+consumer, compose it with the shared options:
 
 ```ts
-const q = createInfiniteQuery({
-  name: 'items',
-  queryKey: ['items'],
-  queryFn: ({ pageParam }: { pageParam: number }) => fetchPage(pageParam),
-  getNextPageParam: (last) => last.next,
-  initialPageParam: 0,
-  // Flatten pages into a single array
-  select: (data) => data.pages.flatMap((p) => p.items),
+const postListQuery = createInfiniteQuery({
+  name: 'post-list',
+  source: $category,
+  query: (category: string) => ({
+    ...postsOptions({ category }),
+    select: data => data.pages.flatMap(page => page.items),
+  }),
 })
-
-q.$data // Store<Item[] | undefined>
+// postListQuery.$data: Store<Post[] | undefined>
 ```
+
+For inline, put the same selector directly in `createInfiniteQuery` options.
+The cache retains the original page set; selection only changes this model's data.
+See [composing select](/effector-tanstack-query/guides/queries/#composing-select)
+for inference guidance.
+
+## Cancellation
+
+Pass the native `signal` to the page request, as in the examples. Requests follow
+TanStack's signal cancellation rules when the last observer leaves a cache entry.
+Use [`createCancel`](/effector-tanstack-query/api/cache-actions/) to cancel explicitly.
 
 ## Refetch behavior
 
-`refresh()` (or `queryClient.invalidateQueries`) refetches **all** loaded pages in order, recomputing `pageParams` from the freshly-fetched data via `getNextPageParam`. The original `pageParams` saved in cache are replaced.
+For an active, enabled query, `refresh()` invalidates the key and refetches the
+retained pages in order. TanStack computes subsequent cursors using fresh page
+results and `getNextPageParam`. With `maxPages`, only retained pages are refetched.
 
-This matches TanStack Query semantics — pagination cursors are derived, not stored as ground truth.
+## Types
+
+Both forms infer page data, selected data and page parameters from the options.
+Inline accepts explicit generics in the order
+`<TQueryFnData, TError, TPageParam, TData, TQueryKey>`. Without `select`, `TData`
+defaults to `InfiniteData<TQueryFnData, TPageParam>`.
+
+Inline's error type defaults to `Error`; factory options use TanStack's
+`DefaultError` unless another error type is inferred. See the
+[options helpers reference](/effector-tanstack-query/api/query-options/)
+for typed cache access and the page-parameter type carried by tagged keys.
