@@ -23,6 +23,36 @@ postsQuery.mounted()
 postsQuery.fetchNextPage() // load more
 ```
 
+## Loading more
+
+For a load-more button, check both page availability and whether a request is
+already active. This avoids starting pagination during an initial fetch,
+background refetch or another page request:
+
+```ts
+import { combine, createEvent, sample } from 'effector'
+
+const loadMoreClicked = createEvent()
+const $canLoadMore = combine(
+  postsQuery.$hasNextPage,
+  postsQuery.$isFetching,
+  (hasNextPage, isFetching) => hasNextPage && !isFetching,
+)
+
+sample({
+  clock: loadMoreClicked,
+  filter: $canLoadMore,
+  target: postsQuery.fetchNextPage,
+})
+```
+
+Disable the button while `$canLoadMore` is false and dispatch
+`loadMoreClicked` on click. In React, read the store and event through `useUnit` so the
+click runs in the owning scope. The model must be mounted; the query hooks
+manage that lifecycle automatically.
+
+This wiring works with both [inline and factory definitions](/effector-tanstack-query/api/create-infinite-query/#usage).
+
 ## Stores and events
 
 In addition to all `QueryResult` fields:
