@@ -16,11 +16,10 @@ import { createInfiniteQuery } from '@effector-tanstack-query/core'
 
 type Post = { id: number; title: string }
 
-declare function fetchPosts(params: {
-  category: string
-  cursor: number
-  signal: AbortSignal
-}): Promise<{ items: Post[]; nextCursor: number | null }>
+declare function fetchPosts(
+  params: { category: string; cursor: number },
+  options?: { signal?: AbortSignal },
+): Promise<{ items: Post[]; nextCursor: number | null }>
 
 const $category = createStore('books')
 
@@ -29,7 +28,7 @@ const postsQuery = createInfiniteQuery({
   queryKey: ['posts', $category],
   initialPageParam: 0,
   queryFn: ({ queryKey: [, category], pageParam, signal }) =>
-    fetchPosts({ category, cursor: pageParam, signal }),
+    fetchPosts({ category, cursor: pageParam }, { signal }),
   getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
 })
 ```
@@ -47,11 +46,10 @@ import { createInfiniteQuery, infiniteQueryOptions } from '@effector-tanstack-qu
 
 type Post = { id: number; title: string }
 
-declare function fetchPosts(params: {
-  category: string
-  cursor: number
-  signal: AbortSignal
-}): Promise<{ items: Post[]; nextCursor: number | null }>
+declare function fetchPosts(
+  params: { category: string; cursor: number },
+  options?: { signal?: AbortSignal },
+): Promise<{ items: Post[]; nextCursor: number | null }>
 
 const $category = createStore('books')
 
@@ -60,7 +58,7 @@ const postsOptions = ({ category }: { category: string }) =>
     queryKey: ['posts', category],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
-      fetchPosts({ category, cursor: pageParam, signal }),
+      fetchPosts({ category, cursor: pageParam }, { signal }),
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
   })
 
