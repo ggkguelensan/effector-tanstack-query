@@ -35,6 +35,47 @@ npm install @effector-tanstack-query/core @effector-tanstack-query/react \
 The `/react` package is optional — install only if you want the hooks. The
 core package is React-agnostic.
 
+## Usage
+
+```ts
+import { createStore } from 'effector'
+import { QueryClient } from '@tanstack/query-core'
+import { createQuery, setQueryClient } from '@effector-tanstack-query/core'
+
+const queryClient = new QueryClient()
+queryClient.mount()
+setQueryClient(queryClient)
+
+const $userId = createStore(1)
+```
+
+### Inline
+
+```ts
+import { fetchUser } from './api'
+
+const userQuery = createQuery({
+  name: 'user',
+  queryKey: ['user', $userId],
+  queryFn: ({ queryKey: [, userId], signal }) => fetchUser(userId, { signal }),
+})
+```
+
+### Factory
+
+```ts
+import { userOptions } from './queries'
+
+const userQuery = createQuery({
+  name: 'user',
+  source: { userId: $userId },
+  query: userOptions,
+})
+```
+
+Activate either model with `userQuery.mounted()` and release it with
+`userQuery.unmounted()`. React hooks manage this lifecycle automatically.
+
 ## Examples
 
 Runnable apps in [`examples/`](./examples):
@@ -51,17 +92,3 @@ Runnable apps in [`examples/`](./examples):
 ## License
 
 MIT
-
-### Reusing options factories
-
-`createQuery` and `createInfiniteQuery` support both **inline** options and a
-**factory** form: `createQuery({ source: { todoId: $todoId }, query: todoOptions })`.
-Factories receive plain values and can also be consumed by QueryClient and
-native UI hooks. Core exports `queryOptions` / `infiniteQueryOptions`; no React
-dependency is required. `enabled` stays boolean or a boolean store at the
-adapter level; use `combine` for derived conditions.
-
-See [factory usage and inference](https://ilyaagarkov.github.io/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
-and [portable helpers](https://ilyaagarkov.github.io/effector-tanstack-query/api/query-options/).
-The existing Query Core peer range remains `^5.0.0`; TypeScript 5.7+ is tested.
-Factory helpers adapt their data/error tags to the installed Query Core version.
