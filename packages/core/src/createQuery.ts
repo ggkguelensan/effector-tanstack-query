@@ -139,24 +139,9 @@ export function createQuery<
         definition.create(options),
       ),
   })
-  if (!('queryKey' in options)) {
-    Object.defineProperty(result, '__createObserverWithOptions', {
-      enumerable: false,
-      value: (qc: QueryClient, options: ResolvedOptions) =>
-        new QueryObserver<TQueryFnData, TError, TData>(qc, options),
-    })
-    Object.defineProperty(result, '__options', {
-      enumerable: false,
-      value: base.$options,
-    })
-  }
-  Object.defineProperty(result, '__resolvedKey', {
+  Object.defineProperty(result, '__options', {
     enumerable: false,
-    value: base.$resolvedKey,
-  })
-  Object.defineProperty(result, '__enabled', {
-    enumerable: false,
-    value: base.$enabled,
+    value: base.$options,
   })
 
   return result

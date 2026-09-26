@@ -1,3 +1,5 @@
+import type { Store } from 'effector'
+import type { ResolvedOptions } from '../resolve'
 import { allSettled, createEvent, createStore, fork } from 'effector'
 import { QueryClient } from '@tanstack/query-core'
 import { queryKey, sleep } from './test-utils'
@@ -323,13 +325,15 @@ describe('createQuery', () => {
     })
 
     const factory = query as typeof query & {
+      __options: Store<ResolvedOptions>
       __createObserver: (
         qc: QueryClient,
-        init: { queryKey: unknown; enabled: boolean },
+        options: ResolvedOptions,
       ) => { options: { queryKey: unknown }; destroy: () => void }
     }
 
     const observer = factory.__createObserver(queryClient, {
+      ...fork().getState(factory.__options),
       queryKey: ['transient'],
       enabled: true,
     })

@@ -1,3 +1,5 @@
+import type { Store } from 'effector'
+import type { ResolvedOptions } from '../resolve'
 import { allSettled, createEvent, createStore, fork } from 'effector'
 import { InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,13 +116,15 @@ describe('createInfiniteQuery (core)', () => {
     })
 
     const factory = query as typeof query & {
+      __options: Store<ResolvedOptions>
       __createObserver: (
         qc: QueryClient,
-        init: { queryKey: unknown; enabled: boolean },
+        options: ResolvedOptions,
       ) => InfiniteQueryObserver
     }
 
     const observer = factory.__createObserver(queryClient, {
+      ...fork().getState(factory.__options),
       queryKey: ['inf-transient'],
       enabled: true,
     })

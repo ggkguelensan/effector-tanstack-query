@@ -322,30 +322,9 @@ export function createInfiniteQuery<
         TPageParam
       >(qc, definition.create(options) as any),
   })
-  if (!('queryKey' in options)) {
-    Object.defineProperty(result, '__createObserverWithOptions', {
-      enumerable: false,
-      value: (qc: QueryClient, options: ResolvedOptions) =>
-        new InfiniteQueryObserver<
-          TQueryFnData,
-          TError,
-          TData,
-          QueryKey,
-          TPageParam
-        >(qc, options as any),
-    })
-    Object.defineProperty(result, '__options', {
-      enumerable: false,
-      value: base.$options,
-    })
-  }
-  Object.defineProperty(result, '__resolvedKey', {
+  Object.defineProperty(result, '__options', {
     enumerable: false,
-    value: base.$resolvedKey,
-  })
-  Object.defineProperty(result, '__enabled', {
-    enumerable: false,
-    value: base.$enabled,
+    value: base.$options,
   })
 
   return result
