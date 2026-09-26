@@ -11,8 +11,7 @@ to define its options:
 | Inline | The query is defined in the Effector model | Stores in `queryKey`, `enabled` and `refetchInterval` |
 | Factory | An options function is shared with other consumers | `source`, plus optional enabled/polling overrides |
 
-Both forms have the same stores, events and lifecycle. For a complete example of
-each, see [`createQuery`](/effector-tanstack-query/api/create-query/#usage).
+For usage examples, see [`createQuery`](/effector-tanstack-query/api/create-query/#usage).
 Use [`createQueries`](/effector-tanstack-query/api/create-queries/) when you need
 one query per element of a source array.
 

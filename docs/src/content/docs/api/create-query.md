@@ -5,7 +5,7 @@ description: Create a query bound to a QueryClient and exposed as effector store
 
 Creates a query model with Effector stores for data and status, and events for
 loading and refreshing. Define its options **inline** or pass an options
-**factory** with a reactive `source`. Both forms return `QueryResult`.
+**factory** with a reactive `source`.
 
 ## Usage
 
@@ -74,8 +74,8 @@ for sharing a definition between consumers.
 
 ### QueryClient and activation
 
-Both forms accept either `createQuery(options)` or
-`createQuery(queryClient, options)`. Without an explicit client, the model reads
+Call `createQuery(options)` or `createQuery(queryClient, options)`.
+Without an explicit client, the model reads
 [`$queryClient`](/effector-tanstack-query/guides/query-client/) from its Effector
 scope. An explicit client takes precedence over the scope's client.
 
@@ -268,7 +268,7 @@ request remains active. To cancel explicitly, use
 
 ## Generic inference
 
-Both forms infer data from the query function and selected data from `select`.
+Data types are inferred from the query function and `select`.
 Prefer a typed API function so these types flow through the definition:
 
 ```ts

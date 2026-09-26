@@ -83,14 +83,14 @@ Top-level enabled/polling values override factory values; `undefined` inherits.
 Other TanStack options, such as `select` and `staleTime`, go in the inline options
 or factory result.
 
-Both forms accept an explicit client: `createInfiniteQuery(queryClient, options)`.
-Otherwise they use `$queryClient` from the Effector scope. See
+Pass an explicit client with `createInfiniteQuery(queryClient, options)`.
+Otherwise the model uses `$queryClient` from the Effector scope. See
 [QueryClient and activation](/effector-tanstack-query/api/create-query/#queryclient-and-activation)
 for setup and ownership.
 
 ## Return value
 
-Both forms return `InfiniteQueryResult<TData, TError, TPageParam>`, with
+Returns `InfiniteQueryResult<TData, TError, TPageParam>`, with
 `$data: Store<TData | undefined>`. Without `select`, the data contains the loaded
 pages and the parameters used to fetch them:
 
