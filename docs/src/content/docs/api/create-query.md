@@ -101,10 +101,9 @@ model's activation. Use `mounted`/`unmounted` for ownership.
 `EffectorQueryKey`:
 
 ```ts
-type ReactiveKey<K extends QueryKey> = {
-  readonly [P in keyof K]: StoreOrValue<K[P]>
-}
-type EffectorQueryKey = ReactiveKey<QueryKey>
+type EffectorQueryKey = ReadonlyArray<
+  StoreOrValue<string | number | bigint | boolean | null | undefined | object>
+>
 ```
 
 ## Cancellation

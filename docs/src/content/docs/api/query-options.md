@@ -55,16 +55,18 @@ As with the upstream 5.100.10 helper, some infinite helper/cache-tag types use
 
 ## Consumers and compatibility
 
-Use the same definitions with `QueryClient`, native UI hooks, and the Effector
+Use the same definitions with `QueryClient`, native React Query hooks, and the Effector
 [factory form](/effector-tanstack-query/api/create-query/#factory-form).
-Helpers are optional: plain objects and existing native helpers with
-core-compatible options also work. No Effector-specific brand is required.
+Helpers are optional: plain objects and existing React Query helpers work
+without rewrapping or changing imports. No Effector-specific brand is required.
 
 The helpers describe portable TanStack options. Each consumer applies its own
 contract. In particular, the Effector adapters support boolean `enabled` values;
 derive reactive conditions with `combine`. A native helper's broad return type
 is accepted, but an actual callback `enabled` requires a boolean override at the
-Effector consumption site. Other framework refs/signals are not unwrapped.
+Effector consumption site. Vue refs/getters and Vue helper compatibility are
+outside this feature. Other framework adapters have not been verified; their
+reactive wrappers are not unwrapped by the core adapter.
 
 The existing Query Core peer range remains **^5.0.0**, with TypeScript **5.7+**
 tested. Helpers use the data-tag symbols available in the installed core; error

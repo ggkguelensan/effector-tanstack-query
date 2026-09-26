@@ -24,10 +24,6 @@ Both `@effector-tanstack-query/core` and `@effector-tanstack-query/react` share 
   this policy does not change inline execution.
 - The TanStack Query peer dependency range remains `^5.0.0`. Helper declarations
   adapt to the installed core's data/error tags and optional skip-token support.
-- Inline Suspense models retain the previous core/React protocol. The new React
-  adapter also accepts models created by the previous core implementation.
-- A compatibility suite compares inline behavior and published type contracts
-  with pre-PR master on Query 5.0.0, 5.40.0, 5.80.0 and 5.100.10.
 
 `enabled` retains boolean semantics. Derive conditions with `combine` and pass a
 store. Native helper return types remain accepted; an actual callback `enabled`

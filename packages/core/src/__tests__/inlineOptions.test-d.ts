@@ -1,13 +1,13 @@
 import { createStore, combine } from 'effector'
 import type { Store } from 'effector'
 import { QueryClient } from '@tanstack/query-core'
-import { createQuery, createInfiniteQuery, createQueries } from '@subject/core'
+import { createQuery, createInfiniteQuery, createQueries } from '../index'
 import type {
   CreateQueryOptions,
   CreateInfiniteQueryOptions,
   EffectorQueryKey,
   QueryResult,
-} from '@subject/core'
+} from '../index'
 
 const client = new QueryClient()
 const $id = createStore(1)
