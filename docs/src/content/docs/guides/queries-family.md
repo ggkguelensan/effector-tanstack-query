@@ -70,18 +70,28 @@ function UserList() {
 
 Throws an aggregated `Promise.all(...)` of every pending item — `<Suspense>` waits until they all settle. First errored item throws to the nearest `<ErrorBoundary>`.
 
-### Pure effector
+### React with useUnit
 
-```ts
+```tsx
 import { useUnit } from 'effector-react'
+import { useEffect } from 'react'
+import { UserCard } from './UserCard'
 
 function UserList() {
-  const items = useUnit(usersFamily.$items)
-  React.useEffect(() => {
-    usersFamily.mounted()
-    return () => usersFamily.unmounted()
-  }, [])
-  return items.map(/* … */)
+  const { items, mounted, unmounted } = useUnit({
+    items: usersFamily.$items,
+    mounted: usersFamily.mounted,
+    unmounted: usersFamily.unmounted,
+  })
+  useEffect(() => {
+    mounted()
+    return () => unmounted()
+  }, [mounted, unmounted])
+  return items.map((item, index) => {
+    if (item.isPending) return <p key={index}>Loading…</p>
+    if (item.isError) return <p key={index}>{item.error?.message}</p>
+    return item.data ? <UserCard key={index} user={item.data} /> : null
+  })
 }
 ```
 
@@ -89,7 +99,7 @@ function UserList() {
 
 ## SSR
 
-Plugs into `prefetchQueries` like any other factory:
+Pass the family to `prefetchQueries` alongside other query models:
 
 ```ts
 import { dehydrate } from '@tanstack/query-core'

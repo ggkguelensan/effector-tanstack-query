@@ -3,9 +3,11 @@ title: createQueries
 description: Reactive family of parallel queries indexed by a source store.
 ---
 
-A factory that produces **one parallel query per element** of a reactive `source` store. Adding or removing items from `source` spawns or disposes observers automatically; reordering preserves observers. Designed for the typical "fetch details for each row of a list" pattern.
+Creates a family with **one parallel query per element** of a reactive `source` store. Adding or removing items from `source` spawns or disposes observers automatically; reordering preserves observers. Designed for the typical "fetch details for each row of a list" pattern.
 
-Like [`createQuery`](/effector-tanstack-query/api/create-query/), it has two forms — the default uses the per-scope `$queryClient`, the explicit form takes a `QueryClient` as the first argument and locks the family to it.
+The family uses the per-scope `$queryClient` by default. Pass a `QueryClient` as
+the first argument to bind it to an explicit client, as with
+[`createQuery`](/effector-tanstack-query/api/create-query/).
 
 ## Example
 
@@ -86,7 +88,8 @@ Each item's `queryFn` runs in parallel via `qc.fetchQuery`; once all settle, the
 
 ## React consumption
 
-- Reactive style (no React): `useUnit(usersFamily.$items)` plus `useEffect(() => { usersFamily.mounted(); return () => usersFamily.unmounted() }, [])`.
-- React-style: [`useQueries(usersFamily)`](/effector-tanstack-query/react/use-queries/) or [`useSuspenseQueries(usersFamily)`](/effector-tanstack-query/react/use-suspense-queries/) — both handle the mount lifecycle for you.
+- [`useQueries(usersFamily)`](/effector-tanstack-query/react/use-queries/) or [`useSuspenseQueries(usersFamily)`](/effector-tanstack-query/react/use-suspense-queries/) handle mounting automatically.
+- With `useUnit`, bind both the stores and lifecycle events to the current scope;
+  see the [manual lifecycle example](/effector-tanstack-query/guides/queries-family/#react-with-useunit).
 
 See the [Queries family guide](/effector-tanstack-query/guides/queries-family/) for the full walk-through.
