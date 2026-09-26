@@ -40,8 +40,6 @@ const todoQuery = createQuery({
 })
 ```
 
-<a id="factory-form"></a>
-
 ### Factory
 
 Keep reusable options in a function that accepts ordinary values. The adapter

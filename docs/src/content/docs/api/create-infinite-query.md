@@ -36,8 +36,6 @@ const postsQuery = createInfiniteQuery({
 The store in `queryKey` resolves to its current value. Including category in the
 key keeps each category's pages in a separate cache entry.
 
-<a id="factory-form"></a>
-
 ### Factory
 
 ```ts
