@@ -8,20 +8,22 @@ Define the query **inline** or connect an options **factory** to reactive parame
 
 ## Usage
 
-Both examples load posts by category. `fetchPosts` accepts a category, numeric
-cursor and abort signal, and returns `Promise<{ items: Post[]; nextCursor: number | null }>`.
-
-```ts
-import { createStore } from 'effector'
-import { createInfiniteQuery, infiniteQueryOptions } from '@effector-tanstack-query/core'
-import { fetchPosts } from './api'
-
-const $category = createStore('books')
-```
-
 ### Inline
 
 ```ts
+import { createStore } from 'effector'
+import { createInfiniteQuery } from '@effector-tanstack-query/core'
+
+type Post = { id: number; title: string }
+
+declare function fetchPosts(params: {
+  category: string
+  cursor: number
+  signal: AbortSignal
+}): Promise<{ items: Post[]; nextCursor: number | null }>
+
+const $category = createStore('books')
+
 const postsQuery = createInfiniteQuery({
   name: 'posts',
   queryKey: ['posts', $category],
@@ -40,6 +42,19 @@ key keeps each category's pages in a separate cache entry.
 ### Factory
 
 ```ts
+import { createStore } from 'effector'
+import { createInfiniteQuery, infiniteQueryOptions } from '@effector-tanstack-query/core'
+
+type Post = { id: number; title: string }
+
+declare function fetchPosts(params: {
+  category: string
+  cursor: number
+  signal: AbortSignal
+}): Promise<{ items: Post[]; nextCursor: number | null }>
+
+const $category = createStore('books')
+
 const postsOptions = ({ category }: { category: string }) =>
   infiniteQueryOptions({
     queryKey: ['posts', category],
