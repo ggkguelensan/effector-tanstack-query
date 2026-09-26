@@ -1,6 +1,6 @@
 ---
 title: createInfiniteQuery
-description: Define an infinite query inline or with an options factory, and load pages through Effector events.
+description: Create a paginated query with cursor-based or bidirectional pagination.
 ---
 
 Creates a query model for a list of pages. Use **inline** options or an options
