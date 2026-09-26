@@ -42,27 +42,9 @@ key keeps each category's pages in a separate cache entry.
 ```ts
 import { createStore } from 'effector'
 import { createInfiniteQuery } from '@effector-tanstack-query/core'
-import { infiniteQueryOptions } from '@effector-tanstack-query/core'
-// or: import { infiniteQueryOptions } from '@tanstack/react-query'
-
-type Post = { id: number; title: string }
-type PostsPage = { items: Post[]; nextCursor: number | null }
-
-declare function getPosts(
-  params: { category: string; cursor: number },
-  options?: { signal?: AbortSignal },
-): Promise<PostsPage>
+import { postsOptions } from './queries'
 
 const $category = createStore('books')
-
-const postsOptions = ({ category }: { category: string }) =>
-  infiniteQueryOptions({
-    queryKey: ['posts', category],
-    initialPageParam: 0,
-    queryFn: ({ pageParam, signal }) =>
-      getPosts({ category, cursor: pageParam }, { signal }),
-    getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-  })
 
 const postsQuery = createInfiniteQuery({
   name: 'posts',
@@ -71,13 +53,14 @@ const postsQuery = createInfiniteQuery({
 })
 ```
 
-The factory receives `{ category: string }` and runs again when `$category`
-changes. The adapter applies all returned options, including the page function
-and cursor callbacks.
+`postsOptions` receives `{ category: string }` and returns infinite query options,
+including the key, page function and cursor callbacks. See its
+[definition in the guide](/effector-tanstack-query/guides/infinite-queries/#define-the-pages).
+When `$category` changes, the adapter reruns the factory and applies all returned
+options.
 
-[`infiniteQueryOptions`](/effector-tanstack-query/api/query-options/) is optional.
-An existing factory using the native React Query helper or returning plain options
-can be passed directly as `query`.
+Pass an existing compatible factory directly as `query`; no additional helper
+wrapper is needed.
 
 ## Signature
 
@@ -292,8 +275,8 @@ select: data => data.pages.flatMap(page => page.items)
 
 Place `select` directly in inline options, or in the object returned by the
 factory. The resulting `$data` is `Store<Post[] | undefined>`; the cache retains
-the original page set. See [composing select](/effector-tanstack-query/guides/queries/#composing-select)
-for a complete factory composition example and inference guidance.
+the original page set. See [selecting a flat list](/effector-tanstack-query/guides/infinite-queries/#select-a-flat-list)
+for a complete factory composition example.
 
 ## Refetch and cancellation
 
