@@ -35,10 +35,10 @@ export function createInfiniteQuery<
   TPageParam = unknown,
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
-  const S extends OptionsSource = OptionsSource,
+  const TSource extends OptionsSource = OptionsSource,
 >(
   options: CreateInfiniteQueryFactoryOptions<
-    S,
+    TSource,
     TQueryFnData,
     TError,
     TPageParam,
@@ -52,11 +52,11 @@ export function createInfiniteQuery<
   TPageParam = unknown,
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
-  const S extends OptionsSource = OptionsSource,
+  const TSource extends OptionsSource = OptionsSource,
 >(
   queryClient: QueryClient,
   options: CreateInfiniteQueryFactoryOptions<
-    S,
+    TSource,
     TQueryFnData,
     TError,
     TPageParam,

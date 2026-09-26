@@ -490,10 +490,12 @@ export interface QueriesResult<TItem, TData = unknown, TError = Error> {
 export type OptionsSource =
   | Store<unknown>
   | Readonly<Record<string, Store<unknown>>>
-export type SourceValue<S extends OptionsSource> =
-  S extends Store<infer V>
+export type SourceValue<TSource extends OptionsSource> =
+  TSource extends Store<infer V>
     ? V
-    : { -readonly [P in keyof S]: S[P] extends Store<infer V> ? V : never }
+    : {
+        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V> ? V : never
+      }
 
 type FactoryOverrides<Interval> = {
   name?: string
@@ -510,16 +512,16 @@ type FactoryOnly<Options> = {
  * requires a boolean top-level override. Use combine for derived conditions.
  */
 export type CreateQueryFactoryOptions<
-  S extends OptionsSource,
+  TSource extends OptionsSource,
   TQueryFnData = unknown,
   TError = DefaultError,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 > = {
-  source: S
+  source: TSource
   // Infer keys from the options' callbacks, not their extra DataTag symbols.
   query: (
-    source: SourceValue<S>,
+    source: SourceValue<TSource>,
   ) => Omit<
     QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
     'queryKey'
@@ -536,16 +538,16 @@ export type CreateQueryFactoryOptions<
   FactoryOnly<QueryObserverOptions>
 
 export type CreateInfiniteQueryFactoryOptions<
-  S extends OptionsSource,
+  TSource extends OptionsSource,
   TQueryFnData = unknown,
   TError = DefaultError,
   TPageParam = unknown,
   TData = InfiniteData<TQueryFnData, TPageParam>,
   TQueryKey extends QueryKey = QueryKey,
 > = {
-  source: S
+  source: TSource
   query: (
-    source: SourceValue<S>,
+    source: SourceValue<TSource>,
   ) => Omit<
     InfiniteOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
     'queryKey'

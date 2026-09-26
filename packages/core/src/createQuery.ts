@@ -17,19 +17,19 @@ export function createQuery<
   TError = DefaultError,
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
-  const S extends OptionsSource = OptionsSource,
+  const TSource extends OptionsSource = OptionsSource,
 >(
-  options: CreateQueryFactoryOptions<S, TQueryFnData, TError, TData, TQueryKey>,
+  options: CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>,
 ): QueryResult<TData, TError>
 export function createQuery<
   TQueryFnData = unknown,
   TError = DefaultError,
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
-  const S extends OptionsSource = OptionsSource,
+  const TSource extends OptionsSource = OptionsSource,
 >(
   queryClient: QueryClient,
-  options: CreateQueryFactoryOptions<S, TQueryFnData, TError, TData, TQueryKey>,
+  options: CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>,
 ): QueryResult<TData, TError>
 export function createQuery<
   TQueryFnData = unknown,
