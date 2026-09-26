@@ -1,6 +1,6 @@
 ---
 title: createQuery
-description: Define a query inline or consume an options factory with reactive Effector parameters.
+description: Create a query bound to a QueryClient and exposed as effector stores.
 ---
 
 Creates a query model with Effector stores for data and status, and events for
