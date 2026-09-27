@@ -442,6 +442,13 @@ interface SuspenseFactory<TObserver> {
   __options: import('effector').Store<SuspenseOptions>
 }
 
+function getSuspenseFactory<TObserver>(query: {
+  $observer: import('effector').Store<TObserver | null>
+}): SuspenseFactory<TObserver> {
+  // Core attaches these internal fields with Object.defineProperty.
+  return query as typeof query & SuspenseFactory<TObserver>
+}
+
 export interface UseSuspenseQueryResult<TData, TError = Error> {
   /** Resolved query data — non-nullable inside the rendered subtree (Suspense
    * absorbed the pending state). */
@@ -759,7 +766,7 @@ function useSuspenseObserver<
     fetchOptimistic(options: any): Promise<unknown>
   },
 >(query: TQuery): TObserver | null {
-  const factory = query as unknown as TQuery & SuspenseFactory<TObserver>
+  const factory = getSuspenseFactory<TObserver>(query)
   const observerInScope = useUnit(query.$observer) as TObserver | null
   const qc = useUnit(query.$queryClient)
   const options = useUnit(factory.__options)
@@ -839,7 +846,7 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   const observersInScope = useUnit(queries.map((q) => q.$observer))
   const qcs = useUnit(queries.map((q) => q.$queryClient))
   const resolvedOptions = useUnit(
-    queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__options),
+    queries.map((q) => getSuspenseFactory(q).__options),
   )
   // One hook for the tuple; each transient uses its model's scoped options.
   const transients = React.useMemo(() => {
@@ -847,7 +854,7 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
       if (observersInScope[i]) return null
       const qc = qcs[i]
       if (!qc) return null
-      return (q as unknown as SuspenseFactory<any>).__createObserver(
+      return getSuspenseFactory(q).__createObserver(
         qc,
         resolvedOptions[i]!,
       )
