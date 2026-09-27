@@ -19,6 +19,7 @@ export default defineConfig({
   // need it installed.
   external: [
     '@effector-tanstack-query/core',
+    '@effector-tanstack-query/core/internal',
     '@tanstack/react-query',
     'effector',
     'effector-react',

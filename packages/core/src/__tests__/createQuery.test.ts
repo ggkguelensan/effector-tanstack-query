@@ -1,5 +1,4 @@
-import type { Store } from 'effector'
-import type { ResolvedOptions } from '../resolve'
+import { getQueryInternals } from '../internal'
 import { allSettled, createEvent, createStore, fork } from 'effector'
 import { QueryClient } from '@tanstack/query-core'
 import { queryKey, sleep } from './test-utils'
@@ -312,34 +311,29 @@ describe('createQuery', () => {
     expect(fetchCount).toBeGreaterThan(beforeStop)
   })
 
-  // Internal: useSuspenseQuery (in the React package) constructs a transient
-  // observer via `__createObserver` when `mountFx` hasn't yet populated the
-  // scope's `$observer` (mountFx runs from useEffect, which is skipped while
-  // the component is suspended). Cover it from the core package so it stays
-  // exercised even outside the React entry point.
-  it('exposes __createObserver internal for the suspense helper', () => {
+  it('creates a transient reader with the supplied resolved options', async () => {
     const query = createQuery<string>(queryClient, {
-      name: 'query.transientObserver',
+      name: 'query.transientReader',
       queryKey: queryKey(),
       queryFn: () => Promise.resolve('hello'),
     })
-
-    const factory = query as typeof query & {
-      __options: Store<ResolvedOptions>
-      __createObserver: (
-        qc: QueryClient,
-        options: ResolvedOptions,
-      ) => { options: { queryKey: unknown }; destroy: () => void }
-    }
-
-    const observer = factory.__createObserver(queryClient, {
-      ...fork().getState(factory.__options),
+    const internals = getQueryInternals(query)
+    const reader = internals.createReader(queryClient, {
+      ...fork().getState(internals.$options),
       queryKey: ['transient'],
       enabled: true,
     })
 
-    expect(observer.options.queryKey).toEqual(['transient'])
-    observer.destroy()
+    expect(reader.read()).toMatchObject({ kind: 'query', status: 'pending' })
+    await reader.fetch()
+    expect(reader.read()).toMatchObject({
+      kind: 'query',
+      status: 'success',
+      data: 'hello',
+    })
+    expect(queryClient.getQueryData(['transient'])).toBe('hello')
+    const unsubscribe = reader.subscribe(() => {})
+    unsubscribe()
   })
 
   it('unmount destroys the observer and resets $isMounted to false', async () => {
@@ -389,9 +383,7 @@ describe('createQuery', () => {
     // mountFx throws (no qc), so the failed consumer is not counted as an
     // owner and $isMounted stays false. A subsequent reactive-key change must
     // not reach the observer (there is none) and must not throw.
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {})
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const setId = createEvent<number>()
     const $id = createStore(1).on(setId, (_, v) => v)

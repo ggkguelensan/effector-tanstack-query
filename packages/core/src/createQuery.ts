@@ -4,7 +4,8 @@ import { QueryObserver } from '@tanstack/query-core'
 import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
 import { resolveQueryDefinition } from './resolve'
-import type { ResolvedOptions } from './resolve'
+import { attachQueryInternals } from './queryInternals'
+import type { SuspenseReader } from './queryInternals'
 import type {
   CreateQueryOptions,
   CreateQueryFactoryOptions,
@@ -216,21 +217,37 @@ export function createQuery<
     finished: base.finished,
   }
 
-  // Internal: used by useSuspenseQuery to construct a transient observer
-  // when the suspense hook renders before mountFx has populated the scope's
-  // $observer (mountFx runs from useEffect, which is skipped while
-  // suspended). Not part of the public API; not in TS types.
-  Object.defineProperty(result, '__createObserver', {
-    enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
-      new QueryObserver<TQueryFnData, TError, TData>(
-        qc,
-        definition.create(options),
+  function toReader(
+    observer: QueryObserver<TQueryFnData, TError, TData>,
+  ): SuspenseReader {
+    return {
+      read: () => ({
+        kind: 'query',
+        // TanStack defaults options in its constructor and setOptions, but
+        // the public options property retains its non-defaulted type.
+        ...observer.getOptimisticResult(
+          observer.options as Parameters<
+            typeof observer.getOptimisticResult
+          >[0],
+        ),
+      }),
+      fetch: () => observer.fetchOptimistic(observer.options),
+      subscribe: (listener) => observer.subscribe(listener),
+    }
+  }
+
+  attachQueryInternals(result, {
+    $options: base.$options,
+    $reader: base.$observer.map((observer) =>
+      observer ? toReader(observer) : null,
+    ),
+    createReader: (qc, options) =>
+      toReader(
+        new QueryObserver<TQueryFnData, TError, TData>(
+          qc,
+          definition.create(options),
+        ),
       ),
-  })
-  Object.defineProperty(result, '__options', {
-    enumerable: false,
-    value: base.$options,
   })
 
   return result

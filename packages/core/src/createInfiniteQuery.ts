@@ -9,7 +9,8 @@ import type {
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
 import { resolveQueryDefinition } from './resolve'
-import type { ResolvedOptions } from './resolve'
+import { attachQueryInternals } from './queryInternals'
+import type { SuspenseReader } from './queryInternals'
 import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
@@ -402,20 +403,40 @@ export function createInfiniteQuery<
     finished: base.finished,
   }
 
-  Object.defineProperty(result, '__createObserver', {
-    enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
-      new InfiniteQueryObserver<
-        TQueryFnData,
-        TError,
-        TData,
-        QueryKey,
-        TPageParam
-      >(qc, definition.create(options) as any),
-  })
-  Object.defineProperty(result, '__options', {
-    enumerable: false,
-    value: base.$options,
+  function toReader(
+    observer: Observer<TQueryFnData, TError, TData, TPageParam>,
+  ): SuspenseReader {
+    return {
+      read: () => ({
+        kind: 'infinite',
+        // The inherited options type omits defaulted and pagination fields
+        // that InfiniteQueryObserver keeps at runtime.
+        ...observer.getOptimisticResult(
+          observer.options as Parameters<
+            typeof observer.getOptimisticResult
+          >[0],
+        ),
+      }),
+      fetch: () => observer.fetchOptimistic(observer.options),
+      subscribe: (listener) => observer.subscribe(listener),
+    }
+  }
+
+  attachQueryInternals(result, {
+    $options: base.$options,
+    $reader: base.$observer.map((observer) =>
+      observer ? toReader(observer) : null,
+    ),
+    createReader: (qc, options) =>
+      toReader(
+        new InfiniteQueryObserver<
+          TQueryFnData,
+          TError,
+          TData,
+          QueryKey,
+          TPageParam
+        >(qc, definition.create(options) as any),
+      ),
   })
 
   return result

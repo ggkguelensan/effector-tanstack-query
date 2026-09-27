@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     // Resolve workspace imports to source so vitest doesn't require a prior build.
     alias: {
+      '@effector-tanstack-query/core/internal': path.resolve(
+        __dirname,
+        '../core/src/internal.ts',
+      ),
       '@effector-tanstack-query/core': path.resolve(
         __dirname,
         '../core/src/index.ts',

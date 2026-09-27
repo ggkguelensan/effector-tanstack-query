@@ -17,6 +17,7 @@ import type {
 // direct `@tanstack/query-core` import.
 export type { QueryFilters, MutationFilters } from '@tanstack/query-core'
 import { $queryClient } from '@effector-tanstack-query/core'
+import { getQueryInternals } from '@effector-tanstack-query/core/internal'
 import type {
   InfiniteQueryResult,
   MutationResult,
@@ -409,8 +410,7 @@ function useQueriesFamily<TItem, TData, TError>(
 // The scope mount chain runs in useEffect, which is skipped while a component
 // is suspended — so on the very first render the scope's `$observer` may be
 // null. To get synchronous access to the observer's promise during suspense,
-// we construct a transient observer via the factory's hidden
-// `__createObserver(qc, options)` helper. The transient observer
+// core constructs a transient reader through its internal protocol. Its observer
 // reads from / writes to the same queryClient cache as the eventual scope
 // observer (which is created when mountFx runs after useEffect commits).
 //
@@ -425,21 +425,6 @@ function useObserverRerender(
     if (!observer) return
     return observer.subscribe(forceRender)
   }, [observer])
-}
-
-type SuspenseOptions = import('@tanstack/query-core').QueryObserverOptions<
-  any,
-  any,
-  any,
-  any,
-  any
->
-interface SuspenseFactory<TObserver> {
-  __createObserver(
-    qc: import('@tanstack/query-core').QueryClient,
-    options: SuspenseOptions,
-  ): TObserver
-  __options: import('effector').Store<SuspenseOptions>
 }
 
 export interface UseSuspenseQueryResult<TData, TError = Error> {
@@ -518,8 +503,8 @@ export function useSuspenseQuery<TData, TError = Error>(
     return () => unmount()
   }, [mount, unmount])
 
-  const observer = useSuspenseObserver(query)
-  useObserverRerender(observer)
+  const reader = useSuspenseReader(query)
+  useObserverRerender(reader)
 
   // Store snapshot — always read so hook order is fixed across renders.
   // The observer path doesn't use it; the store-only path (server-RSC of
@@ -539,12 +524,12 @@ export function useSuspenseQuery<TData, TError = Error>(
   // synchronously and reflects fetches/refetches the moment the observer
   // notifies. Used whenever we have an in-scope observer
   // (post-`mounted()`) or a transient one built from `$queryClient`.
-  if (observer) {
-    const result = observer.getOptimisticResult(observer.options as any)
+  if (reader) {
+    const result = reader.read()
 
     if (result.status === 'error') throw result.error
     if (result.status === 'pending') {
-      throw observer.fetchOptimistic(observer.options as any)
+      throw reader.fetch()
     }
 
     return {
@@ -627,8 +612,8 @@ export function useSuspenseInfiniteQuery<
     return () => unmount()
   }, [mount, unmount])
 
-  const observer = useSuspenseObserver(query)
-  useObserverRerender(observer)
+  const reader = useSuspenseReader(query)
+  useObserverRerender(reader)
 
   // See `useSuspenseQuery` for the observer-vs-stores dual path rationale.
   // Infinite queries carry pagination fields in separate effector stores
@@ -649,26 +634,15 @@ export function useSuspenseInfiniteQuery<
     isFetchPreviousPageError: query.$isFetchPreviousPageError,
   })
 
-  if (observer) {
-    const obs = observer
-    const result = obs.getOptimisticResult(obs.options as any)
+  if (reader) {
+    const r = reader.read()
 
-    if (result.status === 'error') throw result.error
-    if (result.status === 'pending') {
-      throw (
-        obs as unknown as {
-          fetchOptimistic: (options: typeof obs.options) => Promise<unknown>
-        }
-      ).fetchOptimistic(obs.options)
-    }
-
-    const r = result as typeof result & {
-      hasNextPage: boolean
-      hasPreviousPage: boolean
-      isFetchingNextPage: boolean
-      isFetchingPreviousPage: boolean
-      isFetchNextPageError: boolean
-      isFetchPreviousPageError: boolean
+    if (r.status === 'error') throw r.error
+    if (r.status === 'pending') throw reader.fetch()
+    if (r.kind !== 'infinite') {
+      throw new Error(
+        'useSuspenseInfiniteQuery requires an infinite query reader.',
+      )
     }
 
     return {
@@ -721,63 +695,25 @@ export function useSuspenseInfiniteQuery<
   }
 }
 
-/**
- * Resolves a per-scope observer for suspense usage. Prefers the scope's
- * `$observer` (set by mountFx); falls back to a transient observer
- * constructed via `__createObserver` so that the very first render — before
- * useEffect has fired — has a working observer. Both flavors read/write the
- * same queryClient cache, so the transient observer is a thin wrapper.
- */
-function useSuspenseObserver<
-  TQuery extends {
-    $observer: import('effector').Store<TObserver | null>
-    $queryClient: import('effector').Store<
-      import('@tanstack/query-core').QueryClient | null
-    >
-  },
-  TObserver extends {
-    options: { queryKey: unknown }
-    setOptions(options: any): void
-    subscribe(cb: () => void): () => void
-    getOptimisticResult(options: any): {
-      status: 'pending' | 'success' | 'error'
-      data: unknown
-      error: unknown
-      isFetching: boolean
-      isPlaceholderData: boolean
-      fetchStatus: FetchStatus
-      // Infinite-query result fields — present at runtime when the underlying
-      // observer is an InfiniteQueryObserver; the suspense hooks narrow as
-      // needed. Typed as `any` here to keep the constraint loose.
-      hasNextPage?: any
-      hasPreviousPage?: any
-      isFetchingNextPage?: any
-      isFetchingPreviousPage?: any
-      isFetchNextPageError?: any
-      isFetchPreviousPageError?: any
-    }
-    fetchOptimistic(options: any): Promise<unknown>
-  },
->(query: TQuery): TObserver | null {
-  const factory = query as unknown as TQuery & SuspenseFactory<TObserver>
-  const observerInScope = useUnit(query.$observer) as TObserver | null
+/** Uses the mounted scope reader, or creates a transient one before mount. */
+function useSuspenseReader(query: {
+  $queryClient: import('effector').Store<
+    import('@tanstack/query-core').QueryClient | null
+  >
+}) {
+  const internals = getQueryInternals(query)
+  const readerInScope = useUnit(internals.$reader)
   const qc = useUnit(query.$queryClient)
-  const options = useUnit(factory.__options)
+  const options = useUnit(internals.$options)
 
-  // Before mount, both forms expose their current scoped options. Core owns
-  // the option policy; React only needs a usable observer for this render.
   const transient = React.useMemo(() => {
-    if (observerInScope || !qc) return null
-    return factory.__createObserver(qc, options)
-  }, [observerInScope, qc, factory, options])
+    if (readerInScope || !qc) return null
+    return internals.createReader(qc, options)
+  }, [readerInScope, qc, internals, options])
 
-  // Null is a legitimate return: server-RSC render of a scope built from
-  // `serialize(scope)` has neither `$observer` nor `$queryClient` (both are
-  // `serialize: 'ignore'` — instances can't ride through the RSC boundary).
-  // Callers branch on `$status === 'success'` from the serialized stores;
-  // they only error out when a pending state is unreachable without an
-  // observer to throw `fetchOptimistic` on.
-  return observerInScope ?? transient
+  // Serialized scopes may have data but no observer or client. Hooks then
+  // use their store snapshot, retaining the SSR hydration path.
+  return readerInScope ?? transient
 }
 
 // =============================================================================
@@ -835,67 +771,44 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   const isPlaceholderDatas = useUnit(queries.map((q) => q.$isPlaceholderData))
   const fetchStatuses = useUnit(queries.map((q) => q.$fetchStatus))
 
-  // Observer / qc / key info per query — same fixed-count pattern.
-  const observersInScope = useUnit(queries.map((q) => q.$observer))
+  // Read each model's stores with a fixed hook count.
+  const internals = queries.map(getQueryInternals)
+  const readersInScope = useUnit(internals.map((value) => value.$reader))
   const qcs = useUnit(queries.map((q) => q.$queryClient))
-  const resolvedOptions = useUnit(
-    queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__options),
-  )
-  // One hook for the tuple; each transient uses its model's scoped options.
+  const resolvedOptions = useUnit(internals.map((value) => value.$options))
   const transients = React.useMemo(() => {
-    return queries.map((q, i) => {
-      if (observersInScope[i]) return null
+    return internals.map((value, i) => {
+      if (readersInScope[i]) return null
       const qc = qcs[i]
       if (!qc) return null
-      return (q as unknown as SuspenseFactory<any>).__createObserver(
-        qc,
-        resolvedOptions[i]!,
-      )
+      return value.createReader(qc, resolvedOptions[i]!)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries, ...observersInScope, ...qcs, ...resolvedOptions])
+  }, [queries, ...readersInScope, ...qcs, ...resolvedOptions])
 
-  type SuspendableObserver = {
-    options: { queryKey: unknown }
-    subscribe(cb: () => void): () => void
-    fetchOptimistic(options: any): Promise<unknown>
-    getOptimisticResult(options: any): {
-      status: 'pending' | 'success' | 'error'
-      data: unknown
-      error: unknown
-      isFetching: boolean
-      isPlaceholderData: boolean
-      fetchStatus: FetchStatus
-    }
-  }
-  const observers = queries.map(
-    (_, i) =>
-      (observersInScope[i] ??
-        transients[i] ??
-        null) as SuspendableObserver | null,
+  const readers = queries.map(
+    (_, i) => readersInScope[i] ?? transients[i] ?? null,
   )
 
   // Subscribe to every live observer in one effect so the consumer
   // re-renders when ANY of them notifies.
   const [, forceRender] = React.useReducer((x: number) => x + 1, 0)
   React.useEffect(() => {
-    const unsubs = observers.map((obs) =>
-      obs ? obs.subscribe(forceRender) : null,
+    const unsubs = readers.map((reader) =>
+      reader ? reader.subscribe(forceRender) : null,
     )
     return () => {
       for (const u of unsubs) u?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries.length, ...observers])
+  }, [queries.length, ...readers])
 
   // Per-slot live result — from observer if available (synchronous
   // QueryCache read), otherwise null and we fall back to the
   // effector-store snapshot. Mirrors the dual path in
   // `useSuspenseQuery` so SSR scopes (`$observer` + `$queryClient`
   // both null) keep working.
-  const liveResults = observers.map((obs) =>
-    obs ? obs.getOptimisticResult(obs.options) : null,
-  )
+  const liveResults = readers.map((reader) => (reader ? reader.read() : null))
 
   // Errors first — first error wins.
   for (let i = 0; i < queries.length; i++) {
@@ -914,10 +827,10 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   const pendingPromises: Array<Promise<unknown>> = []
   for (let i = 0; i < queries.length; i++) {
     const live = liveResults[i]
-    const obs = observers[i]
+    const reader = readers[i]
     if (live) {
-      if (live.status === 'pending' && obs) {
-        pendingPromises.push(obs.fetchOptimistic(obs.options))
+      if (live.status === 'pending' && reader) {
+        pendingPromises.push(reader.fetch())
       }
     } else if (statuses[i] === 'pending') {
       throw noQueryClientError('useSuspenseQueries')

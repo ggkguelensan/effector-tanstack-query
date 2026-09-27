@@ -4,7 +4,8 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@effector-tanstack-query/core": ["../core/src/index.ts"]
+      "@effector-tanstack-query/core": ["../core/src/index.ts"],
+      "@effector-tanstack-query/core/internal": ["../core/src/internal.ts"]
     },
     "noEmit": true
   },

@@ -1,7 +1,6 @@
-import type { Store } from 'effector'
-import type { ResolvedOptions } from '../resolve'
+import { getQueryInternals } from '../internal'
 import { allSettled, createEvent, createStore, fork } from 'effector'
-import { InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
+import { QueryClient } from '@tanstack/query-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInfiniteQuery } from '../createInfiniteQuery'
 import { $queryClient } from '../queryClient'
@@ -101,7 +100,7 @@ describe('createInfiniteQuery (core)', () => {
     expect(queryFn).not.toHaveBeenCalled()
   })
 
-  it('__createObserver returns a working InfiniteQueryObserver (suspense helper)', () => {
+  it('creates an infinite reader with the supplied resolved options', async () => {
     const query = createInfiniteQuery<
       { items: Array<string>; next: number | null },
       Error,
@@ -114,24 +113,24 @@ describe('createInfiniteQuery (core)', () => {
       initialPageParam: 0,
       getNextPageParam: (last) => last.next,
     })
-
-    const factory = query as typeof query & {
-      __options: Store<ResolvedOptions>
-      __createObserver: (
-        qc: QueryClient,
-        options: ResolvedOptions,
-      ) => InfiniteQueryObserver
-    }
-
-    const observer = factory.__createObserver(queryClient, {
-      ...fork().getState(factory.__options),
+    const internals = getQueryInternals(query)
+    const reader = internals.createReader(queryClient, {
+      ...fork().getState(internals.$options),
       queryKey: ['inf-transient'],
       enabled: true,
     })
+    await reader.fetch()
 
-    expect(observer).toBeInstanceOf(InfiniteQueryObserver)
-    expect(observer.options.queryKey).toEqual(['inf-transient'])
-    observer.destroy()
+    const data = { pages: [{ items: ['p0'], next: null }], pageParams: [0] }
+    expect(reader.read()).toMatchObject({
+      kind: 'infinite',
+      status: 'success',
+      data,
+      hasNextPage: false,
+    })
+    expect(queryClient.getQueryData(['inf-transient'])).toEqual(data)
+    const unsubscribe = reader.subscribe(() => {})
+    unsubscribe()
   })
 
   it('fetchNextPage / fetchPreviousPage drive the observer once mounted', async () => {
@@ -256,7 +255,10 @@ describe('createInfiniteQuery (core)', () => {
       queryKey: ['inf-user', $id],
       queryFn: ({ pageParam, queryKey: qk }) => {
         calls.push(qk[1] as number)
-        return Promise.resolve({ items: [`u${qk[1]}-p${pageParam}`], next: null })
+        return Promise.resolve({
+          items: [`u${qk[1]}-p${pageParam}`],
+          next: null,
+        })
       },
       initialPageParam: 0,
       getNextPageParam: (last) => last.next,
