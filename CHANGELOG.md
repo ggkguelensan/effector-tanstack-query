@@ -11,6 +11,9 @@ Both `@effector-tanstack-query/core` and `@effector-tanstack-query/react` share 
 - Factory overloads for `createQuery` and `createInfiniteQuery`: consume ordinary
   options factories with a store or shallow store shape as `source` and a `query`
   callback. Existing inline calls and explicit-client overloads remain supported.
+- Factory consumer overrides for `select`, `placeholderData`, `staleTime`,
+  refetch policies and `retryOnMount`. Consumer selectors receive raw data and
+  replace factory selectors; optional selectors retain both possible result types.
 - Core-only `queryOptions` / `infiniteQueryOptions` helpers with raw cache data
   tags and upstream MIT attribution.
 - Factory SSR, scope, options updates, native helper types and pre-mount Suspense

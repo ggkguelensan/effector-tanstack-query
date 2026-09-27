@@ -79,6 +79,7 @@ Types are usually inferred from the source, query function and options:
 | `TData` | Model data after `select`; defaults to `InfiniteData<TQueryFnData, TPageParam>` |
 | `TQueryKey` | Query key type |
 | `TSource` | Factory source type: a store or an object of stores |
+| `TFactoryData` | Factory result before a consumer selector overrides it |
 
 The factory receives `SourceValue<TSource>`: for example,
 `{ category: Store<string> }` becomes `{ category: string }`.
@@ -129,6 +130,11 @@ declare function createInfiniteQuery<
 <details>
 <summary>Factory overloads</summary>
 
+The general signatures below accept an optional consumer selector. More specific
+overloads infer the factory result when `select` is absent, and the consumer
+result when it is a definite function. A function-or-`undefined` override keeps
+the union of both results.
+
 ```ts
 declare function createInfiniteQuery<
   TQueryFnData = unknown,
@@ -137,6 +143,7 @@ declare function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
 >(
   options: CreateInfiniteQueryFactoryOptions<
     TSource,
@@ -144,9 +151,10 @@ declare function createInfiniteQuery<
     TError,
     TPageParam,
     TData,
-    TQueryKey
+    TQueryKey,
+    TFactoryData
   >,
-): InfiniteQueryResult<TData, TError, TPageParam>
+): InfiniteQueryResult<TData | TFactoryData, TError, TPageParam>
 
 declare function createInfiniteQuery<
   TQueryFnData = unknown,
@@ -155,6 +163,7 @@ declare function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
 >(
   queryClient: QueryClient,
   options: CreateInfiniteQueryFactoryOptions<
@@ -163,9 +172,10 @@ declare function createInfiniteQuery<
     TError,
     TPageParam,
     TData,
-    TQueryKey
+    TQueryKey,
+    TFactoryData
   >,
-): InfiniteQueryResult<TData, TError, TPageParam>
+): InfiniteQueryResult<TData | TFactoryData, TError, TPageParam>
 ```
 
 </details>
@@ -209,17 +219,22 @@ stores in the key become their values.
 | `query` | `(source: SourceValue<TSource>) => options` | Returns infinite query options from plain source values |
 
 `CreateInfiniteQueryOptions` accepts TanStack infinite observer options with
-reactive `queryKey`, `enabled` and `refetchInterval`. In
-`CreateInfiniteQueryFactoryOptions`, return TanStack options from `query`;
-`source`, `name` and optional enabled/polling overrides belong on the model.
+reactive `queryKey`, `enabled` and `refetchInterval`.
 
-A defined top-level `enabled` or `refetchInterval` overrides the factory value;
-`undefined` inherits it. The adapter uses boolean `enabled`; if a native factory
-supplies a callback, provide a boolean override. Use `combine` for derived
-conditions. See [source and reactivity rules](/effector-tanstack-query/api/create-query/#options).
+Factory consumers can override `select`, `placeholderData`, `staleTime`,
+`refetchOnMount`, `refetchOnWindowFocus`, `refetchOnReconnect`,
+`refetchIntervalInBackground` and `retryOnMount`, as well as `enabled` and
+`refetchInterval`. See the shared [override contract](/effector-tanstack-query/api/create-query/#factory-overrides)
+for precedence, native types and store support.
 
-Other TanStack options, including `select`, `staleTime`, `retry` and
-`placeholderData`, go in the inline options or factory result.
+Here, selectors and placeholder callbacks use
+`InfiniteData<TQueryFnData, TPageParam>` before selection. A top-level selector
+replaces the factory selector; pagination continues to use the raw cached pages.
+Pagination settings and other query settings, such as `retry` and `gcTime`, stay
+in the factory result.
+
+The adapter uses boolean `enabled`; if a native factory supplies a callback,
+provide a boolean override. Use `combine` for derived conditions.
 
 ## Return value
 
@@ -273,8 +288,7 @@ Flatten the loaded pages into a list:
 select: data => data.pages.flatMap(page => page.items)
 ```
 
-Place `select` directly in inline options, or in the object returned by the
-factory. The resulting `$data` is `Store<Post[] | undefined>`; the cache retains
+Place `select` on the model or include it in a reusable factory. The resulting `$data` is `Store<Post[] | undefined>`; the cache retains
 the original page set. See [selecting a flat list](/effector-tanstack-query/guides/infinite-queries/#select-a-flat-list)
 for a complete factory composition example.
 

@@ -224,6 +224,9 @@ queryClient.setQueryData(key, previous =>
 // previous: Todo | undefined
 ```
 
+Effector models accept a ready-made factory directly. To customize its result,
+set `select` on the model; see [consumer overrides](/effector-tanstack-query/api/create-query/#factory-overrides).
+
 The key describes raw cache data even when a consumer uses `select`. A selector
 returning `todo.title` gives that consumer a string; the cache still holds `Todo`.
 An infinite query key describes the entire `InfiniteData` page set.

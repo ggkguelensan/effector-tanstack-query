@@ -250,7 +250,8 @@ const activeTodoQuery = createQuery({
 ```
 
 A defined top-level value overrides the factory value; `undefined` inherits it.
-Put `select` and other consumer options in the factory result. See
+Observer settings such as `select`, `placeholderData` and `staleTime` can also
+be supplied on the model. Derive reactive options in the factory result. See
 [override rules](/effector-tanstack-query/api/create-query/#factory-overrides).
 
 ## Control automatic loading — enabled
@@ -339,17 +340,20 @@ To expose just the title from `todoOptions`, compose a selector at the consumer:
 const titleQuery = createQuery({
   name: 'todo-title',
   source: $todoId,
-  query: (todoId: number) => ({
-    ...todoOptions({ todoId }),
-    select: todo => todo.title,
-  }),
+  query: todoId => todoOptions({ todoId }),
+  select: todo => todo.title,
 })
 // titleQuery.$data: Store<string | undefined>
 ```
 
-The outer parameter annotation helps TypeScript infer the nested selector.
-Alternatively, extract a typed selector or wrap the composed object with
-`queryOptions`. A ready-made factory needs no additional wrapper.
+`todo` is inferred from the factory's raw data. The selector replaces any
+selector in `todoOptions`; it does not receive that selector's result.
+A ready-made factory needs no additional wrapper.
+
+When composing callbacks inside `query: params => ({ ...options, select })`,
+TypeScript can lose the nested callback's input type. Annotate `params` or wrap
+that composed object with `queryOptions` when you need this reactive form. The
+same limitation can affect placeholder and refetch callbacks.
 
 For inline definitions, place `select` directly beside `queryFn`. The model gets
 the selected result; the cache still contains `Todo`. Changing only the selector
@@ -367,6 +371,9 @@ import { keepPreviousData } from '@tanstack/query-core'
 // In the query options:
 placeholderData: keepPreviousData
 ```
+
+Put this field on the model. A callback receives the previous raw query data,
+and the effective `select` determines what the model exposes.
 
 Read `$isPlaceholderData` to distinguish the previous result from data for the
 new key. A static value or `(previousData, previousQuery) => data` function is

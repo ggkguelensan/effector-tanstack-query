@@ -83,6 +83,7 @@ Call `createQuery(options)` to use the scope's `$queryClient`, or
 | `TData` | Selected model data; defaults to `TQueryFnData` |
 | `TQueryKey` | Query key type |
 | `TSource` | Factory source: a store or an object of stores |
+| `TFactoryData` | Factory result before a consumer selector overrides it |
 
 The factory receives `SourceValue<TSource>`, with stores replaced by their values.
 For inline queries, `queryFn` receives `ResolvedQueryKey<TQueryKey>`.
@@ -118,6 +119,11 @@ declare function createQuery<
 <details>
 <summary>Factory overloads</summary>
 
+The general signatures below accept an optional consumer selector. More specific
+overloads infer the factory result when `select` is absent, and the consumer
+result when it is a definite function. A function-or-`undefined` override keeps
+the union of both results.
+
 ```ts
 declare function createQuery<
   TQueryFnData = unknown,
@@ -125,9 +131,17 @@ declare function createQuery<
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = TQueryFnData,
 >(
-  options: CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>,
-): QueryResult<TData, TError>
+  options: CreateQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey,
+    TFactoryData
+  >,
+): QueryResult<TData | TFactoryData, TError>
 
 declare function createQuery<
   TQueryFnData = unknown,
@@ -135,10 +149,18 @@ declare function createQuery<
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = TQueryFnData,
 >(
   queryClient: QueryClient,
-  options: CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>,
-): QueryResult<TData, TError>
+  options: CreateQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey,
+    TFactoryData
+  >,
+): QueryResult<TData | TFactoryData, TError>
 ```
 
 </details>
@@ -183,18 +205,39 @@ A single store is passed as its value: `source: $todoId` pairs with
 `query: todoId => todoOptions({ todoId })`. A store shape becomes a plain object,
 as in the usage example. Use `source: {}` for a factory without parameters.
 
-Place `queryKey`, `queryFn`, `select`, `staleTime` and other TanStack options in
-the factory result. The callback can run before mounting and while disabled;
-keep it pure and put network work in `queryFn`.
+The factory result contains `queryKey`, `queryFn` and reusable TanStack options.
+Observer settings can also be overridden on the model. The callback can run
+before mounting and while disabled; keep it pure and put network work in `queryFn`.
 
 ### Factory overrides
 
-A defined top-level `enabled` or `refetchInterval` replaces the factory's value.
-`false` is an override; `undefined` uses the factory value. The same rule applies
-when an override store changes.
+The following fields can be supplied beside `source` and `query`:
 
-To derive options together, include their inputs in `source` and return the
-values from `query`. See [consumer options](/effector-tanstack-query/guides/queries/#consumer-options).
+| Field | Type / purpose |
+| --- | --- |
+| `enabled`, `refetchInterval` | Same values and stores as the shared options above |
+| `select` | `(data: TQueryFnData) => TData`; selects the model's data |
+| `placeholderData` | Native value or callback using raw data, before `select` |
+| `staleTime` | Native freshness setting |
+| `refetchOnMount`, `refetchOnWindowFocus`, `refetchOnReconnect` | Native refetch policies |
+| `refetchIntervalInBackground` | Whether polling continues in the background |
+| `retryOnMount` | Native retry-on-mount setting |
+
+A defined top-level value replaces the factory value. `false` and `0` are
+valid overrides; omission or `undefined` inherits the factory value. Types follow
+the installed Query Core version. Other settings, such as `retry`, `gcTime`,
+`initialData` and `meta`, belong in the factory result.
+
+A top-level `select` replaces the factory selector and receives raw query data;
+the two selectors are not chained. Without an override, the factory's selected
+result is preserved. If the override is a function or `undefined`, the model's
+data type includes both possible results. Placeholder data also passes through
+the effective selector; it does not replace the raw cache data.
+
+Only `enabled` and `refetchInterval` accept stores at the top level. To derive
+other options reactively, include their inputs in `source` and return their
+values from `query`. A top-level override continues to take precedence after
+source changes. See [consumer options](/effector-tanstack-query/guides/queries/#consumer-options).
 
 ### Option updates and notifications
 

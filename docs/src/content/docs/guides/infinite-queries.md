@@ -166,24 +166,22 @@ query function at the same key does not create a separate page set.
 
 ## Select a flat list
 
-To expose a flat array from the model, replace its `source` and `query` fields
-with this composition using the existing `$category` and `postsOptions`:
+To expose a flat array, add a selector to the model using the existing
+`$category` and `postsOptions`:
 
 ```ts
 const postsQuery = createInfiniteQuery({
   name: 'posts',
-  source: $category,
-  query: (category: string) => ({
-    ...postsOptions({ category }),
-    select: data => data.pages.flatMap(page => page.items),
-  }),
+  source: { category: $category },
+  query: postsOptions,
+  select: data => data.pages.flatMap(page => page.items),
 })
 // postsQuery.$data: Store<Post[] | undefined>
 ```
 
 The view can now render `data` directly instead of flattening `data.pages`.
-Pagination events still operate on the original cached page set. For inline
-options, put the selector beside `queryFn`.
+The selector receives raw `InfiniteData` and replaces any factory selector.
+Pagination events still operate on the original cached page set.
 See the [select contract](/effector-tanstack-query/api/create-infinite-query/#select).
 
 ## Limit retained pages — maxPages
