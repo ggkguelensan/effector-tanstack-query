@@ -8,7 +8,9 @@ import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
   CreateQueryFactoryOptions,
+  QueryFactoryBaseOptions,
   OptionsSource,
+  QueryArguments,
   InheritSelection,
   OverrideSelection,
   EffectorQueryKey,
@@ -23,15 +25,28 @@ export function createQuery<
   const TSource extends OptionsSource = OptionsSource,
   TFactoryData = TQueryFnData,
 >(
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TFactoryData
-  > &
-    OverrideSelection<NoInfer<TQueryFnData>, TData>,
+  ...args: QueryArguments<
+    QueryFactoryBaseOptions<
+      TSource,
+      TQueryFnData,
+      TError,
+      TFactoryData,
+      TQueryKey
+    > &
+      OverrideSelection<NoInfer<TQueryFnData>, TData>
+  >
+): QueryResult<TData, TError>
+export function createQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  const TQueryKey extends QueryKey = QueryKey,
+  const TSource extends OptionsSource = OptionsSource,
+>(
+  ...args: QueryArguments<
+    QueryFactoryBaseOptions<TSource, TQueryFnData, TError, TData, TQueryKey> &
+      InheritSelection
+  >
 ): QueryResult<TData, TError>
 export function createQuery<
   TQueryFnData = unknown,
@@ -41,84 +56,16 @@ export function createQuery<
   const TSource extends OptionsSource = OptionsSource,
   TFactoryData = TQueryFnData,
 >(
-  queryClient: QueryClient,
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TFactoryData
-  > &
-    OverrideSelection<NoInfer<TQueryFnData>, TData>,
-): QueryResult<TData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
->(
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey
-  > &
-    InheritSelection,
-): QueryResult<TData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
->(
-  queryClient: QueryClient,
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey
-  > &
-    InheritSelection,
-): QueryResult<TData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = TQueryFnData,
->(
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TFactoryData
-  >,
-): QueryResult<TData | TFactoryData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = TQueryFnData,
->(
-  queryClient: QueryClient,
-  options: CreateQueryFactoryOptions<
-    TSource,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey,
-    TFactoryData
-  >,
+  ...args: QueryArguments<
+    CreateQueryFactoryOptions<
+      TSource,
+      TQueryFnData,
+      TError,
+      TData,
+      TQueryKey,
+      TFactoryData
+    >
+  >
 ): QueryResult<TData | TFactoryData, TError>
 export function createQuery<
   TQueryFnData = unknown,

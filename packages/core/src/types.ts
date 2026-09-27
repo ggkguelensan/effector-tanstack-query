@@ -486,6 +486,11 @@ export interface QueriesResult<TItem, TData = unknown, TError = Error> {
   readonly __family: true
 }
 
+/** Query calls use the default client or an explicit first argument. */
+export type QueryArguments<TOptions> =
+  | [options: TOptions]
+  | [queryClient: QueryClient, options: TOptions]
+
 /** One store or a shallow shape of stores, as in sample/attach. */
 export type OptionsSource =
   | Store<unknown>
@@ -530,14 +535,13 @@ type FactoryRestrictions<Options> = {
   >]?: never
 }
 
-/** Factory data and consumer data stay independent when select is overridden. */
-export type CreateQueryFactoryOptions<
+/** Shared factory options, before choosing whether to inherit or override select. */
+export type QueryFactoryBaseOptions<
   TSource extends OptionsSource,
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  TQueryKey extends QueryKey = QueryKey,
-  TFactoryData = TData,
+  TQueryFnData,
+  TError,
+  TFactoryData,
+  TQueryKey extends QueryKey,
 > = {
   name?: string
   source: TSource
@@ -562,18 +566,31 @@ export type CreateQueryFactoryOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TQueryKey>
   >
-> &
-  FactorySelection<NoInfer<TQueryFnData>, TData> &
-  FactoryRestrictions<QueryObserverOptions>
+> & FactoryRestrictions<QueryObserverOptions>
 
-export type CreateInfiniteQueryFactoryOptions<
+/** Factory data and consumer data stay independent when select is overridden. */
+export type CreateQueryFactoryOptions<
   TSource extends OptionsSource,
   TQueryFnData = unknown,
   TError = DefaultError,
-  TPageParam = unknown,
-  TData = InfiniteData<TQueryFnData, TPageParam>,
+  TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
   TFactoryData = TData,
+> = QueryFactoryBaseOptions<
+  TSource,
+  TQueryFnData,
+  TError,
+  TFactoryData,
+  TQueryKey
+> & FactorySelection<NoInfer<TQueryFnData>, TData>
+
+export type InfiniteQueryFactoryBaseOptions<
+  TSource extends OptionsSource,
+  TQueryFnData,
+  TError,
+  TPageParam,
+  TFactoryData,
+  TQueryKey extends QueryKey,
 > = {
   name?: string
   source: TSource
@@ -591,9 +608,24 @@ export type CreateInfiniteQueryFactoryOptions<
     NoInfer<TQueryKey>,
     NoInfer<TPageParam>
   >
-> &
-  FactorySelection<
-    InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
-    TData
-  > &
-  FactoryRestrictions<InfiniteQueryObserverOptions>
+> & FactoryRestrictions<InfiniteQueryObserverOptions>
+
+export type CreateInfiniteQueryFactoryOptions<
+  TSource extends OptionsSource,
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  TQueryKey extends QueryKey = QueryKey,
+  TFactoryData = TData,
+> = InfiniteQueryFactoryBaseOptions<
+  TSource,
+  TQueryFnData,
+  TError,
+  TPageParam,
+  TFactoryData,
+  TQueryKey
+> & FactorySelection<
+  InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
+  TData
+>
