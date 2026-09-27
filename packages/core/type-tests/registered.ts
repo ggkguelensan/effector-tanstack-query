@@ -64,3 +64,17 @@ const legacyKey: import('../.type-tests-dist/index').EffectorQueryKey = [
   $id,
 ]
 void legacyKey
+
+const selected = createQuery({
+  source: $id,
+  query: (id) =>
+    queryOptions({ queryKey: ['app', id], queryFn: () => ({ id }) }),
+  select: (data) => String(data.id),
+  staleTime: (query) => {
+    expectTypeOf(query.state.error).toEqualTypeOf<ApplicationError | null>()
+    expectTypeOf(query.queryKey).toMatchTypeOf<ApplicationKey>()
+    return 0
+  },
+})
+expectTypeOf(selected.$data).toEqualTypeOf<Store<string | undefined>>()
+expectTypeOf(selected.$error).toEqualTypeOf<Store<ApplicationError | null>>()

@@ -1,3 +1,4 @@
+import type { NoInfer } from './optionsCompat'
 import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
 import { InfiniteQueryObserver } from '@tanstack/query-core'
 import type {
@@ -13,6 +14,8 @@ import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
   OptionsSource,
+  InheritSelection,
+  OverrideSelection,
   EffectorQueryKey,
   InfiniteQueryResult,
 } from './types'
@@ -36,6 +39,53 @@ export function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
+>(
+  options: CreateInfiniteQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TPageParam,
+    TData,
+    TQueryKey,
+    TFactoryData
+  > &
+    OverrideSelection<
+      InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
+      TData
+    >,
+): InfiniteQueryResult<TData, TError, TPageParam>
+export function createInfiniteQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  const TQueryKey extends QueryKey = QueryKey,
+  const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
+>(
+  queryClient: QueryClient,
+  options: CreateInfiniteQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TPageParam,
+    TData,
+    TQueryKey,
+    TFactoryData
+  > &
+    OverrideSelection<
+      InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
+      TData
+    >,
+): InfiniteQueryResult<TData, TError, TPageParam>
+export function createInfiniteQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  const TQueryKey extends QueryKey = QueryKey,
+  const TSource extends OptionsSource = OptionsSource,
 >(
   options: CreateInfiniteQueryFactoryOptions<
     TSource,
@@ -44,7 +94,8 @@ export function createInfiniteQuery<
     TPageParam,
     TData,
     TQueryKey
-  >,
+  > &
+    InheritSelection,
 ): InfiniteQueryResult<TData, TError, TPageParam>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
@@ -62,8 +113,48 @@ export function createInfiniteQuery<
     TPageParam,
     TData,
     TQueryKey
-  >,
+  > &
+    InheritSelection,
 ): InfiniteQueryResult<TData, TError, TPageParam>
+export function createInfiniteQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  const TQueryKey extends QueryKey = QueryKey,
+  const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
+>(
+  options: CreateInfiniteQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TPageParam,
+    TData,
+    TQueryKey,
+    TFactoryData
+  >,
+): InfiniteQueryResult<TData | TFactoryData, TError, TPageParam>
+export function createInfiniteQuery<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TPageParam = unknown,
+  TData = InfiniteData<TQueryFnData, TPageParam>,
+  const TQueryKey extends QueryKey = QueryKey,
+  const TSource extends OptionsSource = OptionsSource,
+  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
+>(
+  queryClient: QueryClient,
+  options: CreateInfiniteQueryFactoryOptions<
+    TSource,
+    TQueryFnData,
+    TError,
+    TPageParam,
+    TData,
+    TQueryKey,
+    TFactoryData
+  >,
+): InfiniteQueryResult<TData | TFactoryData, TError, TPageParam>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = Error,

@@ -1,7 +1,12 @@
 import { combine, createStore, is } from 'effector'
 import type { Store } from 'effector'
 import type { QueryKey, QueryObserverOptions } from '@tanstack/query-core'
-import type { EffectorQueryKey, OptionsSource, StoreOrValue } from './types'
+import type {
+  EffectorQueryKey,
+  FactoryConsumerOptions,
+  OptionsSource,
+  StoreOrValue,
+} from './types'
 
 export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
   const storePositions: Array<number> = []
@@ -38,16 +43,34 @@ type OptionsInput = {
   name?: string
 } & (
   | { queryKey: EffectorQueryKey }
-  | {
+  | ({
       source: OptionsSource
       query: (params: any) => QueryObserverOptions<any, any, any, any, any>
-    }
+      select?: (data: any) => any
+    } & FactoryConsumerOptions<ResolvedOptions>)
 )
 
 function resolveFactoryOptions(
   options: Extract<OptionsInput, { source: OptionsSource }>,
 ): Store<ResolvedOptions> {
   const { enabled, refetchInterval, name: _name, ...definition } = options
+  // Undefined inherits the factory value; false and zero are overrides.
+  const overrides = Object.fromEntries(
+    (
+      [
+        'select',
+        'placeholderData',
+        'staleTime',
+        'refetchOnMount',
+        'refetchOnWindowFocus',
+        'refetchOnReconnect',
+        'refetchIntervalInBackground',
+        'retryOnMount',
+      ] as const
+    )
+      .filter((key) => options[key] !== undefined)
+      .map((key) => [key, options[key]]),
+  )
   const $raw = (
     is.store(definition.source) ? definition.source : combine(definition.source)
   ).map(definition.query)
@@ -69,6 +92,7 @@ function resolveFactoryOptions(
       }
       return {
         ...options,
+        ...overrides,
         enabled: effectiveEnabled && typeof options.queryFn !== 'symbol',
         ...(interval !== undefined ? { refetchInterval: interval } : {}),
         notifyOnChangeProps: 'all',

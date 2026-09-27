@@ -494,48 +494,77 @@ export type SourceValue<TSource extends OptionsSource> =
   TSource extends Store<infer V>
     ? V
     : {
-        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V> ? V : never
+        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V>
+          ? V
+          : never
       }
 
-type FactoryOverrides<Interval> = {
-  name?: string
+/** Native observer settings; only enabled and polling also accept stores. */
+export type FactoryConsumerOptions<TOptions extends Record<string, any>> = {
   enabled?: StoreOrValue<boolean>
-  refetchInterval?: Interval | Store<number | false | undefined>
-}
-type FactoryOnly<Options> = {
-  [P in Exclude<keyof Options, 'enabled' | 'refetchInterval'>]?: never
+  refetchInterval?:
+    | TOptions['refetchInterval']
+    | Store<number | false | undefined>
+  placeholderData?: TOptions['placeholderData']
+  staleTime?: TOptions['staleTime']
+  refetchOnMount?: TOptions['refetchOnMount']
+  refetchOnWindowFocus?: TOptions['refetchOnWindowFocus']
+  refetchOnReconnect?: TOptions['refetchOnReconnect']
+  refetchIntervalInBackground?: TOptions['refetchIntervalInBackground']
+  retryOnMount?: TOptions['retryOnMount']
 }
 
-/**
- * Reuses ordinary options factories. Runtime enabled is boolean; native
- * helper return types also include callback enabled, so a callback value
- * requires a boolean top-level override. Use combine for derived conditions.
- */
+export type InheritSelection = { select?: undefined }
+export type OverrideSelection<TQueryData, TData> = {
+  select: (data: TQueryData) => TData
+}
+type FactorySelection<TQueryData, TData> =
+  | InheritSelection
+  | OverrideSelection<TQueryData, TData>
+
+/** Reject native fields that do not belong at the factory consumer level. */
+type FactoryRestrictions<Options> = {
+  [P in Exclude<
+    keyof Options,
+    keyof FactoryConsumerOptions<QueryObserverOptions> | 'select'
+  >]?: never
+}
+
+/** Factory data and consumer data stay independent when select is overridden. */
 export type CreateQueryFactoryOptions<
   TSource extends OptionsSource,
   TQueryFnData = unknown,
   TError = DefaultError,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
+  TFactoryData = TData,
 > = {
+  name?: string
   source: TSource
-  // Infer keys from the options' callbacks, not their extra DataTag symbols.
+  // Infer keys from callbacks rather than additional DataTag symbols.
   query: (
     source: SourceValue<TSource>,
   ) => Omit<
-    QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
+    QueryObserverOptions<
+      TQueryFnData,
+      TError,
+      TFactoryData,
+      TQueryFnData,
+      TQueryKey
+    >,
     'queryKey'
   > & { queryKey: NoInfer<TQueryKey> }
-} & FactoryOverrides<
+} & FactoryConsumerOptions<
   QueryObserverOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TError>,
-    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
     NoInfer<TQueryFnData>,
     NoInfer<TQueryKey>
-  >['refetchInterval']
+  >
 > &
-  FactoryOnly<QueryObserverOptions>
+  FactorySelection<NoInfer<TQueryFnData>, TData> &
+  FactoryRestrictions<QueryObserverOptions>
 
 export type CreateInfiniteQueryFactoryOptions<
   TSource extends OptionsSource,
@@ -544,21 +573,27 @@ export type CreateInfiniteQueryFactoryOptions<
   TPageParam = unknown,
   TData = InfiniteData<TQueryFnData, TPageParam>,
   TQueryKey extends QueryKey = QueryKey,
+  TFactoryData = TData,
 > = {
+  name?: string
   source: TSource
   query: (
     source: SourceValue<TSource>,
   ) => Omit<
-    InfiniteOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+    InfiniteOptions<TQueryFnData, TError, TFactoryData, TQueryKey, TPageParam>,
     'queryKey'
   > & { queryKey: NoInfer<TQueryKey> }
-} & FactoryOverrides<
+} & FactoryConsumerOptions<
   InfiniteOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TError>,
-    NoInfer<TData>,
+    InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
     NoInfer<TQueryKey>,
     NoInfer<TPageParam>
-  >['refetchInterval']
+  >
 > &
-  FactoryOnly<InfiniteQueryObserverOptions>
+  FactorySelection<
+    InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
+    TData
+  > &
+  FactoryRestrictions<InfiniteQueryObserverOptions>
