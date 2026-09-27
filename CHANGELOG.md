@@ -4,34 +4,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Both `@effector-tanstack-query/core` and `@effector-tanstack-query/react` share this changelog. Per-release version numbers below indicate which package shipped which change; entries for a single package mention the other staying at its previous version.
 
-## [Unreleased]
-
-### Added
-
-- Factory overloads for `createQuery` and `createInfiniteQuery`: consume ordinary
-  options factories with a store or shallow store shape as `source` and a `query`
-  callback. Existing inline calls and explicit-client overloads remain supported.
-- Factory consumer overrides for `select`, `placeholderData`, `staleTime`,
-  refetch policies and `retryOnMount`. Consumer selectors receive raw data and
-  replace factory selectors; optional selectors retain both possible result types.
-- Core-only `queryOptions` / `infiniteQueryOptions` helpers with raw cache data
-  tags and upstream MIT attribution.
-- Factory SSR, scope, options updates, native helper types and pre-mount Suspense
-  coverage; compatibility with registered query keys and errors.
-
-### Compatibility
-
-- Existing inline calls retain their observer notification filters, resolved
-  defaults, custom-hash handling, polling updates and prefetch behavior.
-- Factory observers apply complete current options and complete notifications;
-  this policy does not change inline execution.
-- The TanStack Query peer dependency range remains `^5.0.0`. Helper declarations
-  adapt to the installed core's data/error tags and optional skip-token support.
-
-`enabled` retains boolean semantics. Derive conditions with `combine` and pass a
-store. Native helper return types remain accepted; an actual callback `enabled`
-requires a boolean override at the Effector consumer.
-
 ## [1.0.0] — 2026-08-07
 
 Stable 1.0. The public API is unchanged from `1.0.0-rc.1`; this release publishes it under the `latest` dist-tag.

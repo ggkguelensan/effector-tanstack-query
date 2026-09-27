@@ -5,7 +5,7 @@ description: Build a query, mount it, and read its data — in two minutes.
 
 ## 1. Set up the QueryClient
 
-The `QueryClient` is the same object used by TanStack Query. Create one and call `.mount()` so it can subscribe to focus / online events. Then register it with `setQueryClient` — query models will use it automatically.
+The `QueryClient` is the same object used by TanStack Query. Create one and call `.mount()` so it can subscribe to focus / online events. Then register it with `setQueryClient` — factories will use it automatically.
 
 ```ts
 import { QueryClient } from '@tanstack/query-core'
@@ -32,7 +32,7 @@ export const userQuery = createQuery({
 })
 ```
 
-You can also pass the client explicitly: `createQuery(queryClient, options)`.
+> Passing the client explicitly still works: `createQuery(queryClient, options)`.
 
 The `name` is optional but **strongly recommended** — it gives the internal stores stable SIDs so they round-trip via `serialize(scope)` / `fork({ values })` for SSR. ([Why?](/effector-tanstack-query/guides/naming-and-sids/))
 
@@ -50,33 +50,26 @@ userQuery.mounted      // EventCallable<void>  — start the subscription
 userQuery.refresh      // EventCallable<void>  — invalidate + refetch
 ```
 
-Subscribe to state updates and activate the model:
+Drive the lifecycle yourself, then read state:
 
 ```ts
-const stopWatching = userQuery.$data.watch(data => console.log(data))
-userQuery.mounted()
+userQuery.mounted()             // observer subscribes; query starts fetching
+// ...await something
+console.log(userQuery.$data.getState())
 ```
 
-When the consumer is released, clean up its subscription:
-
-```ts
-userQuery.unmounted()
-stopWatching()
-```
-
-Mounting subscribes the observer; it does not wait for the network request.
-To await data in a test or server loader, inject a fresh client into a scope and
-use `prefetchQueries` to fetch data and populate the model stores:
+In tests with `fork`, inject a fresh client per scope:
 
 ```ts
 import { fork, allSettled } from 'effector'
-import { $queryClient, prefetchQueries } from '@effector-tanstack-query/core'
+import { $queryClient } from '@effector-tanstack-query/core'
 
 const queryClient = new QueryClient()
+queryClient.mount()
+
 const scope = fork({ values: [[$queryClient, queryClient]] })
-await prefetchQueries([userQuery], { scope })
-// After a successful request, scope.getState(userQuery.$data) contains the user.
-await allSettled(userQuery.unmounted, { scope })
+await allSettled(userQuery.mounted, { scope })
+expect(scope.getState(userQuery.$data)).toEqual({ id: 1, name: 'Alice' })
 ```
 
 ## 4. Use in React (optional)
@@ -103,8 +96,7 @@ The hook calls `mounted()` on mount and `unmounted()` on cleanup automatically.
 
 ## 5. Make the key reactive
 
-Put a `Store` into `queryKey` to make the key reactive. TanStack uses the resolved
-key, cache and options to decide whether to fetch.
+Drop a `Store` into `queryKey` and the query refetches automatically when it updates.
 
 ```ts
 import { createStore, createEvent } from 'effector'
@@ -120,7 +112,7 @@ const userQuery = createQuery({
 })
 
 userQuery.mounted()
-setUserId(2) // switches to key ['user', 2]
+setUserId(2) // → fires a refetch with key ['user', 2]
 ```
 
 ## What's next
