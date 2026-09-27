@@ -1,4 +1,3 @@
-import type { NoInfer } from './optionsCompat'
 import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
 import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
@@ -8,11 +7,8 @@ import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
   CreateQueryFactoryOptions,
-  QueryFactoryBaseOptions,
   OptionsSource,
   QueryArguments,
-  InheritSelection,
-  OverrideSelection,
   EffectorQueryKey,
   QueryResult,
 } from './types'
@@ -23,50 +19,11 @@ export function createQuery<
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = TQueryFnData,
 >(
   ...args: QueryArguments<
-    QueryFactoryBaseOptions<
-      TSource,
-      TQueryFnData,
-      TError,
-      TFactoryData,
-      TQueryKey
-    > &
-      OverrideSelection<NoInfer<TQueryFnData>, TData>
+    CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>
   >
 ): QueryResult<TData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
->(
-  ...args: QueryArguments<
-    QueryFactoryBaseOptions<TSource, TQueryFnData, TError, TData, TQueryKey> &
-      InheritSelection
-  >
-): QueryResult<TData, TError>
-export function createQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = TQueryFnData,
->(
-  ...args: QueryArguments<
-    CreateQueryFactoryOptions<
-      TSource,
-      TQueryFnData,
-      TError,
-      TData,
-      TQueryKey,
-      TFactoryData
-    >
-  >
-): QueryResult<TData | TFactoryData, TError>
 export function createQuery<
   TQueryFnData = unknown,
   TError = Error,

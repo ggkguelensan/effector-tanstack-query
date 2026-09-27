@@ -63,29 +63,3 @@ const infinite = createInfiniteQuery({
 expectTypeOf(useInfiniteQuery(infinite).data).toEqualTypeOf<
   number[] | undefined
 >()
-
-// Native factories retain raw input types for consumer-level overrides.
-const consumer = createQuery({
-  source: $id,
-  query: (id) => options(id),
-  select: (todo) => todo.title,
-  placeholderData: (previous) => previous,
-})
-expectTypeOf(useQuery(consumer).data).toEqualTypeOf<string | undefined>()
-expectTypeOf(useSuspenseQuery(consumer).data).toEqualTypeOf<string>()
-const nativePages = (id: number) =>
-  infiniteQueryOptions({
-    queryKey: ['native-consumer-pages', id],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => ({ id, cursor: pageParam }),
-    getNextPageParam: (page) => page.cursor + 1,
-    select: (data) => data.pages.length,
-  })
-const consumerPages = createInfiniteQuery({
-  source: $id,
-  query: (id) => nativePages(id),
-  select: (data) => data.pages.map((page) => page.id),
-})
-expectTypeOf(useInfiniteQuery(consumerPages).data).toEqualTypeOf<
-  number[] | undefined
->()

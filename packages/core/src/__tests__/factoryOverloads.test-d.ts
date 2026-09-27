@@ -5,7 +5,6 @@ import { createQuery, createInfiniteQuery, queryOptions } from '../index'
 import type {
   CreateQueryOptions,
   CreateInfiniteQueryOptions,
-  CreateInfiniteQueryFactoryOptions,
 } from '../index'
 
 type Todo = { id: number; title: string }
@@ -49,76 +48,8 @@ const explicitPages = createInfiniteQuery<Todo, Error, number, string>(client, {
 expectTypeOf(pages.$data).toEqualTypeOf<Store<string | undefined>>()
 expectTypeOf(explicitPages.$data).toEqualTypeOf<Store<string | undefined>>()
 
-// An optional consumer selector must retain raw data for plain unselected factories.
-const plainOptions = () => ({ queryKey: ['plain'], queryFn: getTodo })
-declare const optionalSelect: ((todo: Todo) => number) | undefined
-const optional = createQuery({
-  source: {},
-  query: plainOptions,
-  select: optionalSelect,
-})
-const explicitOptional = createQuery(client, {
-  source: {},
-  query: plainOptions,
-  select: optionalSelect,
-})
-expectTypeOf(optional.$data).toEqualTypeOf<Store<Todo | number | undefined>>()
-expectTypeOf(explicitOptional.$data).toEqualTypeOf<
-  Store<Todo | number | undefined>
->()
-
-const plainPageOptions = () => ({
-  queryKey: ['plain-pages'],
-  queryFn: getTodo,
-  initialPageParam: 0,
-  getNextPageParam: () => undefined,
-})
-declare const optionalPageSelect:
-  | ((data: InfiniteData<Todo, number>) => number)
-  | undefined
-const optionalPages = createInfiniteQuery({
-  source: {},
-  query: plainPageOptions,
-  select: optionalPageSelect,
-})
-const explicitOptionalPages = createInfiniteQuery(client, {
-  source: {},
-  query: plainPageOptions,
-  select: optionalPageSelect,
-})
-expectTypeOf(optionalPages.$data).toEqualTypeOf<
-  Store<InfiniteData<Todo, number> | number | undefined>
->()
-expectTypeOf(explicitOptionalPages.$data).toEqualTypeOf<
-  Store<InfiniteData<Todo, number> | number | undefined>
->()
-
-// Public option types retain both selection states and their generic order.
-declare const configuredPages: CreateInfiniteQueryFactoryOptions<
-  {},
-  Todo,
-  Error,
-  number,
-  number,
-  string[],
-  string
->
-const configured = createInfiniteQuery(configuredPages)
-expectTypeOf(configured.$data).toEqualTypeOf<
-  Store<string | number | undefined>
->()
-
 const todoOptions = ({ todoId }: { todoId: number }) =>
   queryOptions({ queryKey: ['todo', todoId], queryFn: getTodo })
-const composed = createQuery({
-  source: { todoId: $todoId },
-  query: ({ todoId }) => todoOptions({ todoId }),
-  select: (todo) => {
-    expectTypeOf(todo).toEqualTypeOf<Todo>()
-    return todo.title
-  },
-})
-expectTypeOf(composed.$data).toEqualTypeOf<Store<string | undefined>>()
 const annotated = createQuery({
   source: { todoId: $todoId },
   query: ({ todoId }: { todoId: number }) => ({
@@ -130,6 +61,31 @@ const annotated = createQuery({
   }),
 })
 expectTypeOf(annotated.$data).toEqualTypeOf<Store<string | undefined>>()
+
+// Observer settings belong inside the factory, even for prebuilt option objects.
+const selectedOptions = {
+  source: {},
+  query: titleOptions,
+  select: (todo: Todo) => todo.id,
+}
+// @ts-expect-error select is not a factory-level override
+createQuery(selectedOptions)
+const selectedPages = {
+  source: {},
+  query: pageOptions,
+  select: (data: InfiniteData<Todo, number>) => data.pages.length,
+}
+// @ts-expect-error select is not a factory-level override
+createInfiniteQuery(selectedPages)
+for (const overrides of [
+  { staleTime: 0 },
+  { placeholderData: { id: 1, title: 'placeholder' } },
+]) {
+  // @ts-expect-error observer settings must be returned by query
+  createQuery({ source: {}, query: titleOptions, ...overrides })
+  // @ts-expect-error observer settings must be returned by query
+  createInfiniteQuery({ source: {}, query: pageOptions, ...overrides })
+}
 
 // Parameters must keep seeing the legacy explicit-client signature.
 expectTypeOf<Parameters<typeof createQuery<Todo, Error>>>().toEqualTypeOf<

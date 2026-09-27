@@ -8,7 +8,6 @@ import {
   createQuery,
   createInfiniteQuery,
   infiniteQueryOptions,
-  queryOptions,
 } from '@effector-tanstack-query/core'
 import {
   useSuspenseQuery,
@@ -81,47 +80,6 @@ describe('factory options before the Suspense observer mounts', () => {
     },
   )
 
-  it.each(['single', 'tuple'] as const)(
-    'applies consumer select before mount in %s',
-    async (mode) => {
-      const $id = createStore(1)
-      const query = createQuery(client, {
-        source: $id,
-        query: (id) =>
-          queryOptions({
-            queryKey: ['consumer-suspense', id],
-            queryFn: () =>
-              new Promise<{ id: number }>((resolve) =>
-                setTimeout(() => resolve({ id }), 10),
-              ),
-            select: (todo) => todo.id,
-          }),
-        select: (todo) => `consumer-${todo.id}`,
-      })
-      const scope = fork({ values: [[$id, 3]] })
-      function Single() {
-        return <span>{useSuspenseQuery(query).data}</span>
-      }
-      function Tuple() {
-        return <span>{useSuspenseQueries([query] as const)[0].data}</span>
-      }
-      const view = render(
-        <Provider value={scope}>
-          <React.Suspense fallback={<span>loading</span>}>
-            {mode === 'single' ? <Single /> : <Tuple />}
-          </React.Suspense>
-        </Provider>,
-      )
-      view.getByText('loading')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(11)
-      })
-      view.getByText('consumer-3')
-      expect(client.getQueryData(['consumer-suspense', 3])).toEqual({ id: 3 })
-      view.unmount()
-    },
-  )
-
   it('reads infinite page options from the current source before mount', async () => {
     const $start = createStore(1)
     const query = createInfiniteQuery(client, {
@@ -136,9 +94,8 @@ describe('factory options before the Suspense observer mounts', () => {
               setTimeout(() => resolve(pageParam * start), 10),
             ),
           getNextPageParam: () => undefined,
-          select: (data) => data.pages.length,
+          select: (data) => data.pages.join(','),
         }),
-      select: (data) => data.pages.join(','),
     })
     const scope = fork({ values: [[$start, 3]] })
     function Page() {

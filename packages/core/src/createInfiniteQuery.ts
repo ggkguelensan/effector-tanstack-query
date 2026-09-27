@@ -1,4 +1,3 @@
-import type { NoInfer } from './optionsCompat'
 import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
 import { InfiniteQueryObserver } from '@tanstack/query-core'
 import type {
@@ -13,11 +12,8 @@ import type { ResolvedOptions } from './resolve'
 import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
-  InfiniteQueryFactoryBaseOptions,
   OptionsSource,
   QueryArguments,
-  InheritSelection,
-  OverrideSelection,
   EffectorQueryKey,
   InfiniteQueryResult,
 } from './types'
@@ -41,51 +37,6 @@ export function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
->(
-  ...args: QueryArguments<
-    InfiniteQueryFactoryBaseOptions<
-      TSource,
-      TQueryFnData,
-      TError,
-      TPageParam,
-      TFactoryData,
-      TQueryKey
-    > &
-      OverrideSelection<
-        InfiniteData<NoInfer<TQueryFnData>, NoInfer<TPageParam>>,
-        TData
-      >
-  >
-): InfiniteQueryResult<TData, TError, TPageParam>
-export function createInfiniteQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TPageParam = unknown,
-  TData = InfiniteData<TQueryFnData, TPageParam>,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
->(
-  ...args: QueryArguments<
-    InfiniteQueryFactoryBaseOptions<
-      TSource,
-      TQueryFnData,
-      TError,
-      TPageParam,
-      TData,
-      TQueryKey
-    > &
-      InheritSelection
-  >
-): InfiniteQueryResult<TData, TError, TPageParam>
-export function createInfiniteQuery<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TPageParam = unknown,
-  TData = InfiniteData<TQueryFnData, TPageParam>,
-  const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
-  TFactoryData = InfiniteData<TQueryFnData, TPageParam>,
 >(
   ...args: QueryArguments<
     CreateInfiniteQueryFactoryOptions<
@@ -94,11 +45,10 @@ export function createInfiniteQuery<
       TError,
       TPageParam,
       TData,
-      TQueryKey,
-      TFactoryData
+      TQueryKey
     >
   >
-): InfiniteQueryResult<TData | TFactoryData, TError, TPageParam>
+): InfiniteQueryResult<TData, TError, TPageParam>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = Error,

@@ -86,8 +86,8 @@ createQuery(mixed)
 createQuery({ ...mixed, queryFn: () => 1 })
 // @ts-expect-error source must contain stores, not plain values
 createQuery({ source: { id: 1 }, query: todoOptions })
+// @ts-expect-error event sources are not supported
 createQuery({
-  // @ts-expect-error event sources are not supported
   source: createEvent<number>(),
   query: (id: number) => todoOptions({ id }),
 })
