@@ -23,12 +23,12 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
     return createStore(key as QueryKey)
   }
 
-  return combine(stores).map((values) =>
+  return combine(stores).map<QueryKey>((values) =>
     key.map((item, i) => {
       const storeIdx = storePositions.indexOf(i)
       return storeIdx >= 0 ? values[storeIdx] : item
     }),
-  ) as unknown as Store<QueryKey>
+  )
 }
 
 /** Complete options at the adapter seam; runtime instances are never serialized. */
