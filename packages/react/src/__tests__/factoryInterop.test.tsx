@@ -115,15 +115,21 @@ describe.each(variants)(
           select: (todo) => `${todo.title}:${todo.id * multiplier}`,
         }),
       })
+      const titleQuery = createQuery(client, {
+        source: $id,
+        query: todoOptions,
+        select: (todo) => todo.title.toUpperCase(),
+      })
       function Page() {
         const adapter = useQuery(query)
+        const title = useQuery(titleQuery)
         const native = useNativeQuery({
           ...todoOptions(),
           select: (todo) => todo.id,
         })
         return (
           <span>
-            {adapter.data}/{native.data}
+            {adapter.data}/{native.data}/{title.data}
           </span>
         )
       }
@@ -134,9 +140,9 @@ describe.each(variants)(
           </QueryClientProvider>
         </Provider>,
       )
-      await waitFor(() => view.getByText('todo:1/1'))
+      await waitFor(() => view.getByText('todo:1/1/TODO'))
       await act(() => allSettled(changed, { scope, params: 2 }))
-      view.getByText('todo:2/1')
+      view.getByText('todo:2/1/TODO')
       expect(fetchTodo).toHaveBeenCalledTimes(1)
       expect(client.getQueryData(todoOptions().queryKey)).toEqual({
         id: 1,
@@ -162,6 +168,7 @@ describe.each(variants)(
       const query = createInfiniteQuery(client, {
         source: $id,
         query: pageOptions,
+        select: (data) => data.pages.map((page) => page.page),
       })
       function Page() {
         const id = useUnit($id)
@@ -170,7 +177,7 @@ describe.each(variants)(
         return (
           <>
             <span>
-              {adapter.data?.pages.map((p) => p.page).join(',')}/
+              {adapter.data?.join(',')}/
               {native.data?.pages.map((p) => p.page).join(',')}
             </span>
             <button onClick={adapter.fetchNextPage}>adapter next</button>
