@@ -19,6 +19,15 @@ type Tag<Value, Error> = {
 }
 export type DataTag<Key, Value, Error> =
   Key extends Tag<any, any> ? Key : Key & Tag<Value, Error>
+// A named result lets consumers emit portable declarations for exported factories.
+export type QueryOptionsWithDataTag<
+  TOptions,
+  TQueryKey extends QueryKey,
+  TCacheData,
+  TError,
+> = TOptions & {
+  queryKey: DataTag<TQueryKey, TCacheData, TError>
+}
 export type SkipToken = Exclude<
   QueryObserverOptions['queryFn'],
   Function | undefined
