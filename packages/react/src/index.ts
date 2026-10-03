@@ -316,9 +316,7 @@ export function useQueries<TItem, TData, TError>(
 ): ReadonlyArray<UseQueryResult<TData, TError>>
 export function useQueries(
   arg: UseQueriesTuple | QueriesResult<unknown, unknown, unknown>,
-):
-  | UseQueriesTupleResult<UseQueriesTuple>
-  | ReadonlyArray<UseQueryResult<unknown, unknown>> {
+): UseQueriesTupleResult<UseQueriesTuple> | ReadonlyArray<UseQueryResult<unknown, unknown>> {
   if (Array.isArray(arg)) {
     return useQueriesTuple(arg)
   }
@@ -335,18 +333,18 @@ function useQueriesTuple<T extends UseQueriesTuple>(
   // Rules-of-hooks constraint: the SHAPE of the call list must be
   // stable, not the length of each input array. We satisfy this with a
   // fixed sequence of 9 state-store calls + 3 event-bind calls.
-  const datas = useUnit(queries.map((q) => q.$data))
-  const errors = useUnit(queries.map((q) => q.$error))
-  const statuses = useUnit(queries.map((q) => q.$status))
-  const isPendings = useUnit(queries.map((q) => q.$isPending))
-  const isFetchings = useUnit(queries.map((q) => q.$isFetching))
-  const isSuccesses = useUnit(queries.map((q) => q.$isSuccess))
-  const isErrors = useUnit(queries.map((q) => q.$isError))
+  const datas              = useUnit(queries.map((q) => q.$data))
+  const errors             = useUnit(queries.map((q) => q.$error))
+  const statuses           = useUnit(queries.map((q) => q.$status))
+  const isPendings         = useUnit(queries.map((q) => q.$isPending))
+  const isFetchings        = useUnit(queries.map((q) => q.$isFetching))
+  const isSuccesses        = useUnit(queries.map((q) => q.$isSuccess))
+  const isErrors           = useUnit(queries.map((q) => q.$isError))
   const isPlaceholderDatas = useUnit(queries.map((q) => q.$isPlaceholderData))
-  const fetchStatuses = useUnit(queries.map((q) => q.$fetchStatus))
+  const fetchStatuses      = useUnit(queries.map((q) => q.$fetchStatus))
 
-  const mounts = useUnit(queries.map((q) => q.mounted))
-  const unmounts = useUnit(queries.map((q) => q.unmounted))
+  const mounts    = useUnit(queries.map((q) => q.mounted))
+  const unmounts  = useUnit(queries.map((q) => q.unmounted))
   const refreshes = useUnit(queries.map((q) => q.refresh))
 
   React.useEffect(() => {
@@ -362,16 +360,16 @@ function useQueriesTuple<T extends UseQueriesTuple>(
   }, [queries.length])
 
   return queries.map((_, i) => ({
-    data: datas[i],
-    error: errors[i],
-    status: statuses[i],
-    isPending: isPendings[i],
-    isFetching: isFetchings[i],
-    isSuccess: isSuccesses[i],
-    isError: isErrors[i],
+    data:              datas[i],
+    error:             errors[i],
+    status:            statuses[i],
+    isPending:         isPendings[i],
+    isFetching:        isFetchings[i],
+    isSuccess:         isSuccesses[i],
+    isError:           isErrors[i],
     isPlaceholderData: isPlaceholderDatas[i],
-    fetchStatus: fetchStatuses[i],
-    refresh: refreshes[i],
+    fetchStatus:       fetchStatuses[i],
+    refresh:           refreshes[i],
   })) as UseQueriesTupleResult<T>
 }
 
@@ -389,18 +387,18 @@ function useQueriesFamily<TItem, TData, TError>(
   }, [mount, unmount])
 
   return items.map((it) => ({
-    data: it.data,
-    error: it.error,
-    status: it.status,
-    isPending: it.isPending,
-    isFetching: it.isFetching,
-    isSuccess: it.isSuccess,
-    isError: it.isError,
+    data:              it.data,
+    error:             it.error,
+    status:            it.status,
+    isPending:         it.isPending,
+    isFetching:        it.isFetching,
+    isSuccess:         it.isSuccess,
+    isError:           it.isError,
     isPlaceholderData: it.isPlaceholderData,
-    fetchStatus: it.fetchStatus,
+    fetchStatus:       it.fetchStatus,
     // Per-item refresh — routes through the family's `refreshOne(item)`
     // so the consumer doesn't have to thread the source manually.
-    refresh: () => refreshOne(it.source),
+    refresh:           () => refreshOne(it.source),
   }))
 }
 
@@ -870,9 +868,9 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   }
   const observers = queries.map(
     (_, i) =>
-      (observersInScope[i] ??
-        transients[i] ??
-        null) as SuspendableObserver | null,
+      ((observersInScope[i] ?? transients[i]) ?? null) as
+        | SuspendableObserver
+        | null,
   )
 
   // Subscribe to every live observer in one effect so the consumer

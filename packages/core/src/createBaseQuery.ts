@@ -168,13 +168,7 @@ export function createBaseQuery<
 >(
   explicitClient: QueryClient | null,
   options: BaseQueryOptions,
-  config: CreateBaseQueryConfig<
-    TData,
-    TError,
-    TResult,
-    TObserver,
-    TExtraStores
-  >,
+  config: CreateBaseQueryConfig<TData, TError, TResult, TObserver, TExtraStores>,
 ): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
   const { name, definition } = options
   const { $options, $resolvedKey, $enabled } = definition
