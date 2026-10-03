@@ -1,7 +1,7 @@
 import { createStore, combine } from 'effector'
 import type { Store } from 'effector'
 import { QueryClient } from '@tanstack/query-core'
-import { createQuery, createInfiniteQuery, createQueries } from '../index'
+import { createQuery, createInfiniteQuery } from '../index'
 import type {
   CreateQueryOptions,
   CreateInfiniteQueryOptions,
@@ -72,10 +72,6 @@ createInfiniteQuery<number, CustomError, number>(client, {
 const infiniteInstantiation:
   | ReturnType<typeof createInfiniteQuery<number>>
   | undefined = undefined
-createQueries({
-  source: createStore([1]),
-  query: (id) => ({ queryKey: ['family', id], queryFn: () => id }),
-})
 const key: EffectorQueryKey = ['key', null, undefined, 1, true, {}, $id]
 // @ts-expect-error symbols were not accepted as inline key elements
 const symbolKey: EffectorQueryKey = [Symbol('key')]

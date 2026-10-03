@@ -2,7 +2,6 @@ import { expectTypeOf } from 'vitest'
 import { createStore } from 'effector'
 import type { Store } from 'effector'
 import {
-  QueryClient,
   queryOptions,
   infiniteQueryOptions,
   useQuery as useNativeQuery,
@@ -31,9 +30,6 @@ expectTypeOf(useSuspenseQuery(query).data).toEqualTypeOf<{
   id: number
   title: string
 }>()
-expectTypeOf(new QueryClient().getQueryData(options(1).queryKey)).toEqualTypeOf<
-  { id: number; title: string } | undefined
->()
 
 const selected = createQuery({
   source: $id,

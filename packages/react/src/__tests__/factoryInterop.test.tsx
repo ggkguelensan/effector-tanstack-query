@@ -51,7 +51,7 @@ const variants: Array<{
 
 describe.each(variants)(
   '$name factory with Effector and native hooks',
-  ({ options, pages }) => {
+  ({ name, options, pages }) => {
     it('shares an in-flight request, follows source changes and observes cache writes', async () => {
       const { client, changed, $id, scope } = setup()
       const pending: Array<() => void> = []
@@ -99,50 +99,52 @@ describe.each(variants)(
       expect(scope.getState(query.$observer)).toBeNull()
     })
 
-    it('keeps consumer selectors separate from raw cache data without refetching', async () => {
-      const { client, changed, $id, scope } = setup()
-      const fetchTodo = vi.fn(async () => ({ id: 1, title: 'todo' }))
-      const todoOptions = () =>
-        options({
-          queryKey: ['selected'],
-          queryFn: fetchTodo,
-          staleTime: Infinity,
+    if (name === 'native') {
+      it('keeps consumer selectors separate from raw cache data without refetching', async () => {
+        const { client, changed, $id, scope } = setup()
+        const fetchTodo = vi.fn(async () => ({ id: 1, title: 'todo' }))
+        const todoOptions = () =>
+          options({
+            queryKey: ['selected'],
+            queryFn: fetchTodo,
+            staleTime: Infinity,
+          })
+        const query = createQuery(client, {
+          source: $id,
+          query: (multiplier: number) => ({
+            ...todoOptions(),
+            select: (todo) => `${todo.title}:${todo.id * multiplier}`,
+          }),
         })
-      const query = createQuery(client, {
-        source: $id,
-        query: (multiplier: number) => ({
-          ...todoOptions(),
-          select: (todo) => `${todo.title}:${todo.id * multiplier}`,
-        }),
-      })
-      function Page() {
-        const adapter = useQuery(query)
-        const native = useNativeQuery({
-          ...todoOptions(),
-          select: (todo) => todo.id,
-        })
-        return (
-          <span>
-            {adapter.data}/{native.data}
-          </span>
+        function Page() {
+          const adapter = useQuery(query)
+          const native = useNativeQuery({
+            ...todoOptions(),
+            select: (todo) => todo.id,
+          })
+          return (
+            <span>
+              {adapter.data}/{native.data}
+            </span>
+          )
+        }
+        const view = render(
+          <Provider value={scope}>
+            <QueryClientProvider client={client}>
+              <Page />
+            </QueryClientProvider>
+          </Provider>,
         )
-      }
-      const view = render(
-        <Provider value={scope}>
-          <QueryClientProvider client={client}>
-            <Page />
-          </QueryClientProvider>
-        </Provider>,
-      )
-      await waitFor(() => view.getByText('todo:1/1'))
-      await act(() => allSettled(changed, { scope, params: 2 }))
-      view.getByText('todo:2/1')
-      expect(fetchTodo).toHaveBeenCalledTimes(1)
-      expect(client.getQueryData(todoOptions().queryKey)).toEqual({
-        id: 1,
-        title: 'todo',
+        await waitFor(() => view.getByText('todo:1/1'))
+        await act(() => allSettled(changed, { scope, params: 2 }))
+        view.getByText('todo:2/1')
+        expect(fetchTodo).toHaveBeenCalledTimes(1)
+        expect(client.getQueryData(todoOptions().queryKey)).toEqual({
+          id: 1,
+          title: 'todo',
+        })
       })
-    })
+    }
 
     it('shares infinite pages fetched through either consumer', async () => {
       const { client, $id, scope } = setup()

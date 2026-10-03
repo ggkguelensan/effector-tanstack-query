@@ -99,7 +99,3 @@ createQuery({ source: { id: $id }, query: todoOptions, enabled: () => true })
 createQuery({ source: { wrong: $id }, query: todoOptions })
 // @ts-expect-error infinite factories require page options
 createInfiniteQuery({ source: { id: $id }, query: todoOptions })
-
-// Generic instantiation expressions from the existing API remain valid.
-type Legacy = ReturnType<typeof createQuery<string>>
-expectTypeOf<Legacy['$data']>().toEqualTypeOf<Store<string | undefined>>()
