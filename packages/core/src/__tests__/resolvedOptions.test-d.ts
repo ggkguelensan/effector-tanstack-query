@@ -3,10 +3,10 @@ import { QueryClient, QueryObserver } from '@tanstack/query-core'
 import type {
   QueryObserverOptions,
   QueryObserverResult,
-  InfiniteQueryObserverOptions,
 } from '@tanstack/query-core'
 import { resolveQueryDefinition } from '../resolve'
 import type { ResolvedOptions } from '../resolve'
+import type { InfiniteOptions } from '../optionsCompat'
 import { createBaseQuery } from '../createBaseQuery'
 import { queryOptions, infiniteQueryOptions } from '../index'
 
@@ -39,6 +39,7 @@ export function checkResolvedOptions() {
       : false
   > = true
   const selected: string = options.select!({ id: 1 })
+  const key: Key = options.queryKey
   // @ts-expect-error select must accept the raw object, not selected data
   options.select!('selected')
   const wrong = queryOptions({
@@ -93,13 +94,7 @@ export function checkResolvedOptions() {
     },
   )
   type Page = { items: number[] }
-  type Infinite = InfiniteQueryObserverOptions<
-    Page,
-    Failure,
-    string,
-    Key,
-    number
-  >
+  type Infinite = InfiniteOptions<Page, Failure, string, Key, number>
   const infinite = resolveQueryDefinition<Infinite>({
     source,
     query: (id) =>
@@ -116,7 +111,7 @@ export function checkResolvedOptions() {
   const pageParam: number = infinite.$options.getState().initialPageParam
   // @ts-expect-error page parameter must remain a number
   const wrongPage: string = infinite.$options.getState().initialPageParam
-  return { rawIsNotAny, selected, base, pageParam, wrongPage }
+  return { rawIsNotAny, selected, key, base, pageParam, wrongPage }
 }
 
 export function checkFactoryOverrides() {

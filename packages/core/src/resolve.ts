@@ -26,12 +26,12 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
   key.forEach((item, i) => {
     if (is.store(item)) {
       storePositions.push(i)
-      stores.push(item as Store<unknown>)
+      stores.push(item)
     }
   })
 
   if (stores.length === 0) {
-    return createStore(key as QueryKey)
+    return createStore(key)
   }
 
   return combine(stores).map<QueryKey>((values) =>
@@ -51,7 +51,7 @@ export type ResolvedOptions<TOptions extends NativeOptions = NativeOptions> =
     'enabled' | 'notifyOnChangeProps' | 'queryHash' | '_defaulted'
   > & {
     enabled: boolean
-    queryKey: TOptions['queryKey']
+    queryKey: NonNullable<TOptions['queryKey']>
     notifyOnChangeProps?: NativeOptions['notifyOnChangeProps']
     queryHash?: string
     _defaulted?: boolean
@@ -69,13 +69,17 @@ type OptionsInput<TOptions extends NativeOptions = NativeOptions> = {
     })
   | {
       source: OptionsSource
-      query: (params: any) => TOptions
+      query: (
+        params: any,
+      ) => TOptions & { queryKey: NonNullable<TOptions['queryKey']> }
     }
 )
 
 function resolveFactoryOptions<TOptions extends NativeOptions>(options: {
   source: OptionsSource
-  query: (params: any) => TOptions
+  query: (
+    params: any,
+  ) => TOptions & { queryKey: NonNullable<TOptions['queryKey']> }
   enabled?: StoreOrValue<boolean>
   refetchInterval?:
     | TOptions['refetchInterval']
@@ -94,7 +98,7 @@ function resolveFactoryOptions<TOptions extends NativeOptions>(options: {
     : createStore(refetchInterval, { skipVoid: false, serialize: 'ignore' })
   return combine(
     { options: $raw, enabled: $enabled, interval: $interval },
-    ({ options, enabled, interval }) => {
+    ({ options, enabled, interval }): ResolvedOptions<TOptions> => {
       const effectiveEnabled = enabled ?? options.enabled ?? true
       if (typeof effectiveEnabled !== 'boolean') {
         throw new TypeError(
@@ -107,7 +111,7 @@ function resolveFactoryOptions<TOptions extends NativeOptions>(options: {
         enabled: effectiveEnabled && typeof options.queryFn !== 'symbol',
         ...(interval !== undefined ? { refetchInterval: interval } : {}),
         notifyOnChangeProps: 'all',
-      } as ResolvedOptions<TOptions>
+      }
     },
   )
 }

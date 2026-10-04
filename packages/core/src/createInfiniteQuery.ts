@@ -3,13 +3,13 @@ import { InfiniteQueryObserver } from '@tanstack/query-core'
 import type {
   DefaultError,
   InfiniteData,
-  InfiniteQueryObserverOptions,
   QueryClient,
   QueryKey,
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
 import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
+import type { InfiniteOptions } from './optionsCompat'
 import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
@@ -111,7 +111,7 @@ export function createInfiniteQuery<
   const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
   type Key = ResolvedQueryKey<TQueryKey>
-  type NativeOptions = InfiniteQueryObserverOptions<
+  type NativeOptions = InfiniteOptions<
     TQueryFnData,
     TError,
     TData,
@@ -256,7 +256,7 @@ export function createInfiniteQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchInfiniteQuery(definition.prefetch(options) as any)
+      return qc.fetchInfiniteQuery(definition.prefetch(options))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
