@@ -7,13 +7,16 @@ import { hydrate } from '@tanstack/query-core'
 import type {
   DehydratedState,
   FetchStatus,
+  FetchQueryOptions,
   HydrateOptions,
   MutateOptions,
   MutationFilters,
   QueryClient,
   QueryFilters,
-  QueryObserverOptions,
   QueryStatus,
+  QueryKey,
+  QueryObserver,
+  QueryObserverOptions,
 } from '@tanstack/query-core'
 
 // Re-exported for convenience so consumers can type filter arguments without a
@@ -26,6 +29,8 @@ import type {
   MutationStatus,
   QueriesResult,
   QueryResult,
+  QueryObserverFactory,
+  QueryFamilyOptionsProvider,
 } from '@effector-tanstack-query/core'
 
 export interface HydrationBoundaryProps {
@@ -88,8 +93,13 @@ export interface UseQueryResult<TData, TError = Error> {
  * Subscribes a React component to a query, automatically calling
  * `mounted()` on mount and `unmounted()` on cleanup.
  */
-export function useQuery<TData, TError = Error>(
-  query: QueryResult<TData, TError>,
+export function useQuery<
+  TData,
+  TError = Error,
+  TQueryFnData = TData,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  query: QueryResult<TData, TError, TQueryFnData, TQueryKey>,
 ): UseQueryResult<TData, TError> {
   const state = useUnit({
     data: query.$data,
@@ -115,7 +125,12 @@ export function useQuery<TData, TError = Error>(
   return { ...state, refresh }
 }
 
-export interface UseMutationResult<TData, TError, TVariables> {
+export interface UseMutationResult<
+  TData,
+  TError,
+  TVariables,
+  TOnMutateResult = any,
+> {
   data: TData | undefined
   error: TError | null
   status: MutationStatus
@@ -135,9 +150,24 @@ export interface UseMutationResult<TData, TError, TVariables> {
    */
   mutateWith: (args: {
     variables: TVariables
-    onSuccess?: MutateOptions<TData, TError, TVariables>['onSuccess']
-    onError?: MutateOptions<TData, TError, TVariables>['onError']
-    onSettled?: MutateOptions<TData, TError, TVariables>['onSettled']
+    onSuccess?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSuccess']
+    onError?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onError']
+    onSettled?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSettled']
   }) => void
   reset: () => void
 }
@@ -147,9 +177,14 @@ export interface UseMutationResult<TData, TError, TVariables> {
  * `start()` on mount and `unmounted()` on cleanup so the queryClient can
  * garbage-collect the mutation entry once no observers remain.
  */
-export function useMutation<TData = unknown, TError = Error, TVariables = void>(
-  mutation: MutationResult<TData, TError, TVariables>,
-): UseMutationResult<TData, TError, TVariables> {
+export function useMutation<
+  TData = unknown,
+  TError = Error,
+  TVariables = void,
+  TOnMutateResult = any,
+>(
+  mutation: MutationResult<TData, TError, TVariables, TOnMutateResult>,
+): UseMutationResult<TData, TError, TVariables, TOnMutateResult> {
   const state = useUnit({
     data: mutation.$data,
     error: mutation.$error,
@@ -257,8 +292,14 @@ export interface UseInfiniteQueryResult<TData, TError> {
  * Subscribes a React component to an infinite query, with auto mount/unmount
  * lifecycle and bound `fetchNextPage` / `fetchPreviousPage` callbacks.
  */
-export function useInfiniteQuery<TData, TError = Error, TPageParam = unknown>(
-  query: InfiniteQueryResult<TData, TError, TPageParam>,
+export function useInfiniteQuery<
+  TData,
+  TError = Error,
+  TPageParam = unknown,
+  TQueryFnData = unknown,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  query: InfiniteQueryResult<TData, TError, TPageParam, TQueryFnData, TQueryKey>,
 ): UseInfiniteQueryResult<TData, TError> {
   const state = useUnit({
     data: query.$data,
@@ -297,7 +338,7 @@ export function useInfiniteQuery<TData, TError = Error, TPageParam = unknown>(
 // produced by `createQueries({ source, query })`.
 // =============================================================================
 
-type UseQueriesTuple = ReadonlyArray<QueryResult<any, any>>
+type UseQueriesTuple = ReadonlyArray<QueryResult<any, any, any, any>>
 
 /**
  * Maps a tuple of `QueryResult<TData, TError>` to a tuple of
@@ -306,7 +347,10 @@ type UseQueriesTuple = ReadonlyArray<QueryResult<any, any>>
  * yields fully-typed entries.
  */
 export type UseQueriesTupleResult<T extends UseQueriesTuple> = {
-  [K in keyof T]: T[K] extends QueryResult<infer D, infer E>
+  [K in keyof T]: T[K] extends Pick<
+    QueryResult<infer D, infer E>,
+    '$data' | '$error' | 'finished'
+  >
     ? UseQueryResult<D, E>
     : never
 }
@@ -428,15 +472,6 @@ function useObserverRerender(
   }, [observer])
 }
 
-type SuspenseOptions = QueryObserverOptions<any, any, any, any, any>
-interface SuspenseFactory<TObserver> {
-  __createObserver(
-    qc: QueryClient,
-    options: SuspenseOptions,
-  ): TObserver
-  __options: Store<SuspenseOptions>
-}
-
 export interface UseSuspenseQueryResult<TData, TError = Error> {
   /** Resolved query data — non-nullable inside the rendered subtree (Suspense
    * absorbed the pending state). */
@@ -500,8 +535,13 @@ function noQueryClientError(hook: string): Error {
  * `useQuery`, but with `data` narrowed to non-nullable `TData` since the
  * pending state is impossible past the Suspense gate.
  */
-export function useSuspenseQuery<TData, TError = Error>(
-  query: QueryResult<TData, TError>,
+export function useSuspenseQuery<
+  TData,
+  TError = Error,
+  TQueryFnData = TData,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  query: QueryResult<TData, TError, TQueryFnData, TQueryKey>,
 ): UseSuspenseQueryResult<TData, TError> {
   // Auto-mount lifecycle so concurrent consumers (useUnit / useQuery) reading
   // the same query through the effector scope stay in sync.
@@ -535,16 +575,19 @@ export function useSuspenseQuery<TData, TError = Error>(
   // notifies. Used whenever we have an in-scope observer
   // (post-`mounted()`) or a transient one built from `$queryClient`.
   if (observer) {
-    const result = observer.getOptimisticResult(observer.options as any)
+    // Native constructor/setOptions apply defaults; .options has a broader declaration.
+    const result = observer.getOptimisticResult(
+      observer.options as Parameters<typeof observer.getOptimisticResult>[0],
+    )
 
     if (result.status === 'error') throw result.error
     if (result.status === 'pending') {
-      throw observer.fetchOptimistic(observer.options as any)
+      throw observer.fetchOptimistic(observer.options)
     }
 
     return {
-      data: result.data as TData,
-      error: result.error as TError | null,
+      data: result.data,
+      error: result.error,
       status: 'success',
       isPending: false,
       isSuccess: true,
@@ -566,9 +609,10 @@ export function useSuspenseQuery<TData, TError = Error>(
     throw noQueryClientError('useSuspenseQuery')
   }
 
+  // Serialized stores are independent; this path relies on the prefetch/hydration contract.
   return {
     data: state.data as TData,
-    error: state.error as TError | null,
+    error: state.error,
     status: 'success',
     isPending: false,
     isSuccess: true,
@@ -609,8 +653,10 @@ export function useSuspenseInfiniteQuery<
   TData,
   TError = Error,
   TPageParam = unknown,
+  TQueryFnData = unknown,
+  TQueryKey extends QueryKey = QueryKey,
 >(
-  query: InfiniteQueryResult<TData, TError, TPageParam>,
+  query: InfiniteQueryResult<TData, TError, TPageParam, TQueryFnData, TQueryKey>,
 ): UseSuspenseInfiniteQueryResult<TData, TError> {
   const mount = useUnit(query.mounted)
   const unmount = useUnit(query.unmounted)
@@ -646,42 +692,31 @@ export function useSuspenseInfiniteQuery<
 
   if (observer) {
     const obs = observer
-    const result = obs.getOptimisticResult(obs.options as any)
+    const result = obs.getOptimisticResult(
+      obs.options as Parameters<typeof obs.getOptimisticResult>[0],
+    )
 
     if (result.status === 'error') throw result.error
     if (result.status === 'pending') {
-      throw (
-        obs as unknown as {
-          fetchOptimistic: (options: typeof obs.options) => Promise<unknown>
-        }
-      ).fetchOptimistic(obs.options)
-    }
-
-    const r = result as typeof result & {
-      hasNextPage: boolean
-      hasPreviousPage: boolean
-      isFetchingNextPage: boolean
-      isFetchingPreviousPage: boolean
-      isFetchNextPageError: boolean
-      isFetchPreviousPageError: boolean
+      throw obs.fetchOptimistic(obs.options)
     }
 
     return {
-      data: r.data as TData,
-      error: r.error as TError | null,
+      data: result.data,
+      error: result.error,
       status: 'success',
       isPending: false,
       isSuccess: true,
       isError: false,
-      isFetching: r.isFetching,
-      isPlaceholderData: r.isPlaceholderData,
-      fetchStatus: r.fetchStatus,
-      hasNextPage: r.hasNextPage,
-      hasPreviousPage: r.hasPreviousPage,
-      isFetchingNextPage: r.isFetchingNextPage,
-      isFetchingPreviousPage: r.isFetchingPreviousPage,
-      isFetchNextPageError: r.isFetchNextPageError,
-      isFetchPreviousPageError: r.isFetchPreviousPageError,
+      isFetching: result.isFetching,
+      isPlaceholderData: result.isPlaceholderData,
+      fetchStatus: result.fetchStatus,
+      hasNextPage: result.hasNextPage,
+      hasPreviousPage: result.hasPreviousPage,
+      isFetchingNextPage: result.isFetchingNextPage,
+      isFetchingPreviousPage: result.isFetchingPreviousPage,
+      isFetchNextPageError: result.isFetchNextPageError,
+      isFetchPreviousPageError: result.isFetchPreviousPageError,
       refresh,
       fetchNextPage,
       fetchPreviousPage,
@@ -694,9 +729,10 @@ export function useSuspenseInfiniteQuery<
     throw noQueryClientError('useSuspenseInfiniteQuery')
   }
 
+  // Serialized stores are independent; this path relies on the prefetch/hydration contract.
   return {
     data: state.data as TData,
-    error: state.error as TError | null,
+    error: state.error,
     status: 'success',
     isPending: false,
     isSuccess: true,
@@ -724,36 +760,16 @@ export function useSuspenseInfiniteQuery<
  * same queryClient cache, so the transient observer is a thin wrapper.
  */
 function useSuspenseObserver<
-  TQuery extends {
-    $observer: Store<TObserver | null>
-    $queryClient: Store<QueryClient | null>
-  },
-  TObserver extends {
-    options: { queryKey: unknown }
-    setOptions(options: any): void
-    subscribe(cb: () => void): () => void
-    getOptimisticResult(options: any): {
-      status: 'pending' | 'success' | 'error'
-      data: unknown
-      error: unknown
-      isFetching: boolean
-      isPlaceholderData: boolean
-      fetchStatus: FetchStatus
-      // Infinite-query result fields — present at runtime when the underlying
-      // observer is an InfiniteQueryObserver; the suspense hooks narrow as
-      // needed. Typed as `any` here to keep the constraint loose.
-      hasNextPage?: any
-      hasPreviousPage?: any
-      isFetchingNextPage?: any
-      isFetchingPreviousPage?: any
-      isFetchNextPageError?: any
-      isFetchPreviousPageError?: any
-    }
-    fetchOptimistic(options: any): Promise<unknown>
-  },
->(query: TQuery): TObserver | null {
-  const factory = query as unknown as TQuery & SuspenseFactory<TObserver>
-  const observerInScope = useUnit(query.$observer) as TObserver | null
+  TObserver extends { options: QueryObserverOptions<any, any, any, any, any> },
+>(query: {
+  $observer: Store<TObserver | null>
+  $queryClient: Store<QueryClient | null>
+}): TObserver | null {
+  // Public view annotations omit core capabilities. Existing APIs require an
+  // original factory result; preserve that contract at this single bridge.
+  const factory = query as typeof query &
+    QueryObserverFactory<TObserver['options'], TObserver>
+  const observerInScope = useUnit(query.$observer)
   const qc = useUnit(query.$queryClient)
   const options = useUnit(factory.__options)
 
@@ -778,10 +794,13 @@ function useSuspenseObserver<
 // static tuple of factories OR a family from `createQueries(...)`.
 // =============================================================================
 
-type UseSuspenseQueriesTuple = ReadonlyArray<QueryResult<any, any>>
+type UseSuspenseQueriesTuple = ReadonlyArray<QueryResult<any, any, any, any>>
 
 export type UseSuspenseQueriesTupleResult<T extends UseSuspenseQueriesTuple> = {
-  [K in keyof T]: T[K] extends QueryResult<infer D, infer E>
+  [K in keyof T]: T[K] extends Pick<
+    QueryResult<infer D, infer E>,
+    '$data' | '$error' | 'finished'
+  >
     ? UseSuspenseQueryResult<D, E>
     : never
 }
@@ -831,16 +850,20 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   // Observer / qc / key info per query — same fixed-count pattern.
   const observersInScope = useUnit(queries.map((q) => q.$observer))
   const qcs = useUnit(queries.map((q) => q.$queryClient))
-  const resolvedOptions = useUnit(
-    queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__options),
-  )
+  type Observer = QueryObserver<any, any, any, any, any>
+  type Options = Observer['options']
+  // Same factory-only invariant as the single-query compatibility bridge.
+  type Factory = UseSuspenseQueriesTuple[number] &
+    QueryObserverFactory<Options, Observer>
+  const factories: ReadonlyArray<Factory> = queries as T & ReadonlyArray<Factory>
+  const resolvedOptions = useUnit(factories.map((q) => q.__options))
   // One hook for the tuple; each transient uses its model's scoped options.
   const transients = React.useMemo(() => {
-    return queries.map((q, i) => {
+    return factories.map((q, i) => {
       if (observersInScope[i]) return null
       const qc = qcs[i]
       if (!qc) return null
-      return (q as unknown as SuspenseFactory<any>).__createObserver(
+      return q.__createObserver(
         qc,
         resolvedOptions[i]!,
       )
@@ -848,24 +871,8 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queries, ...observersInScope, ...qcs, ...resolvedOptions])
 
-  type SuspendableObserver = {
-    options: { queryKey: unknown }
-    subscribe(cb: () => void): () => void
-    fetchOptimistic(options: any): Promise<unknown>
-    getOptimisticResult(options: any): {
-      status: 'pending' | 'success' | 'error'
-      data: unknown
-      error: unknown
-      isFetching: boolean
-      isPlaceholderData: boolean
-      fetchStatus: FetchStatus
-    }
-  }
   const observers = queries.map(
-    (_, i) =>
-      ((observersInScope[i] ?? transients[i]) ?? null) as
-        | SuspendableObserver
-        | null,
+    (_, i) => (observersInScope[i] ?? transients[i]) ?? null,
   )
 
   // Subscribe to every live observer in one effect so the consumer
@@ -887,7 +894,11 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   // `useSuspenseQuery` so SSR scopes (`$observer` + `$queryClient`
   // both null) keep working.
   const liveResults = observers.map((obs) =>
-    obs ? obs.getOptimisticResult(obs.options) : null,
+    obs
+      ? obs.getOptimisticResult(
+          obs.options as Parameters<typeof obs.getOptimisticResult>[0],
+        )
+      : null,
   )
 
   // Errors first — first error wins.
@@ -940,13 +951,6 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   }) as UseSuspenseQueriesTupleResult<T>
 }
 
-interface FamilyInternals<TItem> {
-  __queryFor: (item: TItem) => {
-    queryKey: ReadonlyArray<unknown>
-    queryFn?: unknown
-  }
-}
-
 function useSuspenseQueriesFamily<TItem, TData, TError>(
   family: QueriesResult<TItem, TData, TError>,
 ): ReadonlyArray<UseSuspenseQueryResult<TData, TError>> {
@@ -971,10 +975,13 @@ function useSuspenseQueriesFamily<TItem, TData, TError>(
     if (!qc) {
       throw noQueryClientError('useSuspenseQueries')
     }
-    const queryFor = (family as unknown as FamilyInternals<TItem>).__queryFor
+    // The public family view omits the provider installed by core.
+    const provider = family as typeof family &
+      QueryFamilyOptionsProvider<TItem, FetchQueryOptions>
+    const queryFor = provider.__queryFor
     throw Promise.all(
       pending.map((it) =>
-        qc.fetchQuery(queryFor(it.source) as any).catch(() => undefined),
+        qc.fetchQuery(queryFor(it.source)).catch(() => undefined),
       ),
     )
   }

@@ -1,18 +1,15 @@
-import {
-  attach,
-  createEvent,
-  createStore,
-  sample,
-  scopeBind,
-} from 'effector'
+import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
 import type { Store } from 'effector'
 import { MutationObserver } from '@tanstack/query-core'
 import type { MutateOptions, QueryClient } from '@tanstack/query-core'
 import { $queryClient } from './queryClient'
 import { sidConfig, warnMissingName } from './createBaseQuery'
-import type { CreateMutationOptions, MutationResult } from './types'
-
-type MutationStatus = 'idle' | 'pending' | 'success' | 'error'
+import type {
+  CreateMutationOptions,
+  MutationResult,
+  MutationStatus,
+  FactoryArguments,
+} from './types'
 
 export function createMutation<
   TData = unknown,
@@ -20,24 +17,24 @@ export function createMutation<
   TVariables = void,
   TOnMutateResult = unknown,
 >(
-  arg1:
-    | QueryClient
-    | CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-  arg2?: CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-): MutationResult<TData, TError, TVariables> {
-  const [explicitClient, options] = parseMutationArgs<
-    TData,
-    TError,
-    TVariables,
-    TOnMutateResult
-  >(arg1, arg2)
+  ...args: FactoryArguments<
+    CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>
+  >
+): MutationResult<TData, TError, TVariables, TOnMutateResult> {
+  if (args.length === 2) return buildMutation(args[0], args[1])
+  return buildMutation(null, args[0])
+}
 
+function buildMutation<TData, TError, TVariables, TOnMutateResult>(
+  explicitClient: QueryClient | null,
+  options: CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
+): MutationResult<TData, TError, TVariables, TOnMutateResult> {
   const { name, ...observerOptions } = options
 
   if (!name) warnMissingName('createMutation')
 
   const $effectiveClient: Store<QueryClient | null> = explicitClient
-    ? createStore(explicitClient as QueryClient | null, {
+    ? createStore<QueryClient | null>(explicitClient, {
         serialize: 'ignore',
       })
     : $queryClient
@@ -133,13 +130,13 @@ export function createMutation<
         if (prevStatus === 'pending') {
           if (result.status === 'success') {
             dispatchFinishedSuccess({
-              params: result.variables as TVariables,
-              result: result.data as TData,
+              params: result.variables,
+              result: result.data,
             })
           } else if (result.status === 'error') {
             dispatchFinishedFailure({
-              params: result.variables as TVariables,
-              error: result.error as TError,
+              params: result.variables,
+              error: result.error,
             })
           }
         }
@@ -190,9 +187,24 @@ export function createMutation<
   // that don't fit module-level `sample({ clock: finished.success })` wiring.
   const mutateWith = createEvent<{
     variables: TVariables
-    onSuccess?: MutateOptions<TData, TError, TVariables>['onSuccess']
-    onError?: MutateOptions<TData, TError, TVariables>['onError']
-    onSettled?: MutateOptions<TData, TError, TVariables>['onSettled']
+    onSuccess?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSuccess']
+    onError?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onError']
+    onSettled?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSettled']
   }>()
 
   const mutateWithFx = attach({
@@ -204,9 +216,24 @@ export function createMutation<
         ...callbacks
       }: {
         variables: TVariables
-        onSuccess?: MutateOptions<TData, TError, TVariables>['onSuccess']
-        onError?: MutateOptions<TData, TError, TVariables>['onError']
-        onSettled?: MutateOptions<TData, TError, TVariables>['onSettled']
+        onSuccess?: MutateOptions<
+          TData,
+          TError,
+          TVariables,
+          TOnMutateResult
+        >['onSuccess']
+        onError?: MutateOptions<
+          TData,
+          TError,
+          TVariables,
+          TOnMutateResult
+        >['onError']
+        onSettled?: MutateOptions<
+          TData,
+          TError,
+          TVariables,
+          TOnMutateResult
+        >['onSettled']
       },
     ) => {
       if (!observer) return
@@ -250,22 +277,4 @@ export function createMutation<
       failure: finishedFailure,
     },
   }
-}
-
-function parseMutationArgs<TData, TError, TVariables, TOnMutateResult>(
-  arg1:
-    | QueryClient
-    | CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-  arg2?: CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-): [
-  QueryClient | null,
-  CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-] {
-  if (arg2 !== undefined) {
-    return [arg1 as QueryClient, arg2]
-  }
-  return [
-    null,
-    arg1 as CreateMutationOptions<TData, TError, TVariables, TOnMutateResult>,
-  ]
 }

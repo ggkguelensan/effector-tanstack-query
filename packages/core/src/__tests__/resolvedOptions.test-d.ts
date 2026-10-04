@@ -4,8 +4,8 @@ import type {
   QueryObserverOptions,
   QueryObserverResult,
 } from '@tanstack/query-core'
-import { resolveQueryDefinition } from '../resolve'
-import type { ResolvedOptions } from '../resolve'
+import { resolveQueryOptions } from '../resolve'
+import type { ResolvedQueryObserverOptions } from '../resolve'
 import type { InfiniteOptions } from '../optionsCompat'
 import { createBaseQuery } from '../createBaseQuery'
 import { queryOptions, infiniteQueryOptions } from '../index'
@@ -16,14 +16,14 @@ class Failure extends Error {
 }
 type Key = readonly ['typed', number]
 type Native = QueryObserverOptions<Raw, Failure, string, Raw, Key>
-type Options = ResolvedOptions<Native>
+type Options = ResolvedQueryObserverOptions<Native>
 type Observer = QueryObserver<Raw, Failure, string, Raw, Key>
 type IsAny<T> = 0 extends 1 & T ? true : false
 type Assert<T extends true> = T
 
-export function checkResolvedOptions() {
+export function checkResolvedQueryObserverOptions() {
   const source = createStore(1)
-  const definition = resolveQueryDefinition<Native>({
+  const binding = resolveQueryOptions<Native, typeof source>({
     source,
     query: (id) =>
       queryOptions({
@@ -32,7 +32,7 @@ export function checkResolvedOptions() {
         select: (data) => String(data.id),
       }),
   })
-  const options = definition.$options.getState()
+  const options = binding.$options.getState()
   const rawIsNotAny: Assert<
     IsAny<Parameters<NonNullable<typeof options.select>>[0]> extends false
       ? true
@@ -47,18 +47,19 @@ export function checkResolvedOptions() {
     queryFn: async () => ({ other: true }),
     select: () => '',
   })
-  // @ts-expect-error a mismatched raw query function cannot satisfy the typed definition
-  resolveQueryDefinition<Native>({ source, query: () => wrong })
+  // @ts-expect-error a mismatched raw query function cannot satisfy the typed binding
+  resolveQueryOptions<Native, typeof source>({ source, query: () => wrong })
   const base = createBaseQuery<
     string,
     Failure,
     QueryObserverResult<string, Failure>,
     Observer,
     {},
-    Options
+    Options,
+    Native
   >(
     null,
-    { definition, name: 'typed' },
+    { binding, name: 'typed' },
     {
       createObserver: (client, current) =>
         new QueryObserver<Raw, Failure, string, Raw, Key>(client, current),
@@ -84,18 +85,19 @@ export function checkResolvedOptions() {
     QueryObserverResult<string, Failure>,
     Observer,
     {},
-    Options
+    Options,
+    Native
   >(
     null,
-    { definition },
+    { binding },
     {
-      // @ts-expect-error observer data types must match the definition and creator contract
+      // @ts-expect-error observer data types must match the binding and creator contract
       createObserver: createWrongObserver,
     },
   )
   type Page = { items: number[] }
   type Infinite = InfiniteOptions<Page, Failure, string, Key, number>
-  const infinite = resolveQueryDefinition<Infinite>({
+  const infinite = resolveQueryOptions<Infinite, typeof source>({
     source,
     query: (id) =>
       infiniteQueryOptions({
@@ -115,7 +117,7 @@ export function checkResolvedOptions() {
 }
 
 export function checkFactoryOverrides() {
-  const definition = resolveQueryDefinition({
+  const binding = resolveQueryOptions({
     source: createStore(1),
     enabled: true,
     query: (id) => ({
@@ -126,8 +128,8 @@ export function checkFactoryOverrides() {
     }),
   })
   // @ts-expect-error top-level overrides mean resolved enabled cannot retain the literal false
-  const alwaysFalse: false = definition.$options.getState().enabled
+  const alwaysFalse: false = binding.$options.getState().enabled
   // @ts-expect-error factory policy forces all, so the raw notify tuple is not the resolved type
-  const onlyData: ['data'] = definition.$options.getState().notifyOnChangeProps!
+  const onlyData: ['data'] = binding.$options.getState().notifyOnChangeProps!
   return { alwaysFalse, onlyData }
 }

@@ -38,6 +38,8 @@ export type {
   QueriesResult,
   QueryItemState,
   QueryResult,
+  QueryObserverFactory,
+  QueryFamilyOptionsProvider,
   StoreOrValue,
 } from './types'
 

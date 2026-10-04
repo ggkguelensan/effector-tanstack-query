@@ -1,23 +1,34 @@
 import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
-import type { Event, EventCallable, Store } from 'effector'
+import type { Event, EventCallable, Store, Unit } from 'effector'
 import type {
   FetchStatus,
   QueryClient,
   QueryKey,
   QueryStatus,
+  QueryObserverOptions,
+  QueryObserverResult,
 } from '@tanstack/query-core'
 import { $queryClient } from './queryClient'
-import type { QueryDefinition, ResolvedOptions } from './resolve'
+import type {
+  QueryOptionsBinding,
+  ResolvedQueryObserverOptions,
+} from './resolve'
 
 /**
  * The minimal shape of an observer that createBaseQuery knows how to drive.
  * Both QueryObserver and InfiniteQueryObserver satisfy this.
  */
-export interface BaseObserverLike<
+export interface QueryObserverProtocol<
   TResult,
-  TOptions extends ResolvedOptions = ResolvedOptions,
+  TOptions extends QueryObserverOptions<
+    any,
+    any,
+    any,
+    any,
+    any
+  > = QueryObserverOptions<any, any, any, any, any>,
 > {
-  options: { queryKey: QueryKey; _defaulted?: boolean; queryHash?: string }
+  options: TOptions
   setOptions(options: TOptions): void
   subscribe(listener: (result: TResult) => void): () => void
   getCurrentResult(): TResult
@@ -28,31 +39,30 @@ export interface BaseObserverLike<
  * The subset of observer result fields that createBaseQuery wires up
  * into stores common to all query flavors.
  */
-export interface BaseObserverResult<TData, TError> {
-  data: TData | undefined
-  error: TError | null
-  status: QueryStatus
-  isFetching: boolean
-  fetchStatus: FetchStatus
-  isPlaceholderData: boolean
-  /**
-   * Timestamp (ms) of the last successful cache data update. Advancing values
-   * in observer notifications drive `finished.success`; cache writes count
-   * too, and multiple resolutions can share one millisecond.
-   */
-  dataUpdatedAt: number
-  /**
-   * Timestamp (ms) of the last error. Advancing values in observer
-   * notifications drive `finished.failure`.
-   */
-  errorUpdatedAt: number
-}
+type SnapshotFields =
+  | 'data'
+  | 'error'
+  | 'status'
+  | 'isFetching'
+  | 'fetchStatus'
+  | 'isPlaceholderData'
+  | 'dataUpdatedAt'
+  | 'errorUpdatedAt'
 
-export interface BaseQueryStores<
+type DistributivePick<T, K extends keyof T> = T extends unknown
+  ? Pick<T, K>
+  : never
+
+export type QueryObserverSnapshot<TData, TError> = DistributivePick<
+  QueryObserverResult<TData, TError>,
+  SnapshotFields
+>
+
+export interface QueryBindings<
   TData,
   TError,
   TObserver,
-  TOptions extends ResolvedOptions = ResolvedOptions,
+  TOptions extends ResolvedQueryObserverOptions = ResolvedQueryObserverOptions,
 > {
   $data: Store<TData | undefined>
   $error: Store<TError | null>
@@ -97,9 +107,10 @@ export interface BaseQueryStores<
 }
 
 export interface BaseQueryOptions<
-  TOptions extends ResolvedOptions = ResolvedOptions,
+  TOptions extends ResolvedQueryObserverOptions,
+  TObserverOptions extends QueryObserverOptions<any, any, any, any, any>,
 > {
-  definition: QueryDefinition<TOptions>
+  binding: Omit<QueryOptionsBinding<TOptions, TObserverOptions>, 'prefetch'>
   name?: string
 }
 
@@ -131,9 +142,9 @@ export function sidConfig(
   }
 }
 
-export interface ExtrasSetup<TResult, TObserver, TExtraStores> {
+export interface QueryExtensionBindings<TResult, TObserver, TExtraBindings> {
   /** Extra stores/events merged into the final result object. */
-  stores: TExtraStores
+  stores: TExtraBindings
   /**
    * Invoked inside the mount effect. Must scope-bind any extra events
    * and return a function that dispatches extra fields from the observer
@@ -150,44 +161,73 @@ export interface ExtrasSetup<TResult, TObserver, TExtraStores> {
   setupEffects?: (params: { $observer: Store<TObserver | null> }) => void
 }
 
-export interface CreateBaseQueryConfig<
+export type CreateBaseQueryConfig<
   TData,
   TError,
-  TResult extends BaseObserverResult<TData, TError>,
-  TObserver extends BaseObserverLike<TResult, TOptions>,
-  TExtraStores,
-  TOptions extends ResolvedOptions = ResolvedOptions,
-> {
+  TResult extends QueryObserverSnapshot<TData, TError>,
+  TObserver extends QueryObserverProtocol<TResult, TObserverOptions>,
+  TExtraBindings extends Record<string, Unit<unknown>>,
+  TObserverOptions extends QueryObserverOptions<
+    any,
+    any,
+    any,
+    any,
+    any
+  > = QueryObserverOptions<any, any, any, any, any>,
+> = {
   /** Build the observer for the current scope. Receives the resolved client. */
-  createObserver: (queryClient: QueryClient, initial: TOptions) => TObserver
+  createObserver: (
+    queryClient: QueryClient,
+    initial: TObserverOptions,
+  ) => TObserver
   /**
    * Hook for query flavors that need additional stores/events (e.g. infinite
    * query's hasNextPage, fetchNextPage). Called once at factory time.
    */
-  setupExtras?: () => ExtrasSetup<TResult, TObserver, TExtraStores>
-}
+} & (keyof TExtraBindings extends never
+  ? {
+      setupExtras?: () => QueryExtensionBindings<
+        TResult,
+        TObserver,
+        TExtraBindings
+      >
+    }
+  : {
+      setupExtras: () => QueryExtensionBindings<
+        TResult,
+        TObserver,
+        TExtraBindings
+      >
+    })
 
 export function createBaseQuery<
   TData,
   TError,
-  TResult extends BaseObserverResult<TData, TError>,
-  TObserver extends BaseObserverLike<TResult, TOptions>,
-  TExtraStores = {},
-  TOptions extends ResolvedOptions = ResolvedOptions,
+  TResult extends QueryObserverSnapshot<TData, TError>,
+  TObserver extends QueryObserverProtocol<TResult, TObserverOptions>,
+  TExtraBindings extends Record<string, Unit<unknown>> = {},
+  TOptions extends ResolvedQueryObserverOptions = ResolvedQueryObserverOptions,
+  TObserverOptions extends QueryObserverOptions<
+    any,
+    any,
+    any,
+    any,
+    any
+  > = QueryObserverOptions<any, any, any, any, any>,
 >(
   explicitClient: QueryClient | null,
-  options: BaseQueryOptions<TOptions>,
+  options: BaseQueryOptions<TOptions, TObserverOptions>,
   config: CreateBaseQueryConfig<
     TData,
     TError,
     TResult,
     TObserver,
-    TExtraStores,
-    TOptions
+    TExtraBindings,
+    TObserverOptions
   >,
-): BaseQueryStores<TData, TError, TObserver, TOptions> & TExtraStores {
-  const { name, definition } = options
-  const { $options, $resolvedKey, $enabled } = definition
+): QueryBindings<TData, TError, TObserver, TOptions> & TExtraBindings {
+  const { name, binding } = options
+  const { $options, $resolvedKey, $enabled } = binding
 
   // If an explicit client is passed, the factory is locked to it. fork()
   // values cannot override the captured value because $effectiveClient is a
@@ -195,7 +235,7 @@ export function createBaseQuery<
   // we route through $queryClient — which respects fork({ values }) for
   // per-scope isolation.
   const $effectiveClient: Store<QueryClient | null> = explicitClient
-    ? createStore(explicitClient as QueryClient | null, {
+    ? createStore<QueryClient | null>(explicitClient, {
         serialize: 'ignore',
       })
     : $queryClient
@@ -273,7 +313,7 @@ export function createBaseQuery<
 
       const observer =
         existingObserver ??
-        config.createObserver(qc, definition.create(currentOptions))
+        config.createObserver(qc, binding.create(currentOptions))
 
       const dispatchData = scopeBind(dataUpdated, { safe: true })
       const dispatchError = scopeBind(errorUpdated, { safe: true })
@@ -298,7 +338,7 @@ export function createBaseQuery<
 
       observerSubscriptions.get(observer)?.()
       observer.setOptions(
-        definition.update(observer.options, currentOptions, true),
+        binding.update(observer.options, currentOptions, true),
       )
 
       const dispatch = (result: TResult) => {
@@ -323,14 +363,14 @@ export function createBaseQuery<
             !result.isPlaceholderData
           ) {
             lastDataUpdatedAt = result.dataUpdatedAt
-            dispatchFinishedSuccess(result.data as TData)
+            dispatchFinishedSuccess(result.data)
           }
           if (
             result.errorUpdatedAt > lastErrorUpdatedAt &&
             result.status === 'error'
           ) {
             lastErrorUpdatedAt = result.errorUpdatedAt
-            dispatchFinishedFailure(result.error as TError)
+            dispatchFinishedFailure(result.error)
           }
         }
       }
@@ -358,7 +398,7 @@ export function createBaseQuery<
     effect: (observer, currentOptions: TOptions) => {
       if (observer)
         observer.setOptions(
-          definition.update(observer.options, currentOptions, false),
+          binding.update(observer.options, currentOptions, false),
         )
     },
   })
@@ -459,6 +499,6 @@ export function createBaseQuery<
       success: finishedSuccess,
       failure: finishedFailure,
     },
-    ...(extras?.stores ?? ({} as TExtraStores)),
+    ...(extras?.stores ?? ({} as TExtraBindings)),
   }
 }

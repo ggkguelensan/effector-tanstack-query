@@ -1,3 +1,4 @@
+import type { ResolvedQueryObserverOptions } from './resolve'
 import type { InfiniteOptions, NoInfer } from './optionsCompat'
 import type { Event, EventCallable, Store } from 'effector'
 import type {
@@ -9,6 +10,7 @@ import type {
   MutateOptions,
   MutationObserver,
   MutationObserverOptions,
+  MutationStatus as NativeMutationStatus,
   QueryClient,
   QueryKey,
   QueryObserver,
@@ -62,15 +64,15 @@ export interface CreateQueryOptions<
   TData = TQueryFnData,
   TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 > extends Omit<
-  QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryFnData,
-    ResolvedQueryKey<TQueryKey>
-  >,
-  'queryKey' | 'enabled' | 'refetchInterval'
-> {
+    QueryObserverOptions<
+      TQueryFnData,
+      TError,
+      TData,
+      TQueryFnData,
+      ResolvedQueryKey<TQueryKey>
+    >,
+    'queryKey' | 'enabled' | 'refetchInterval'
+  > {
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /**
@@ -98,7 +100,13 @@ export interface CreateQueryOptions<
   name?: string
 }
 
-export interface QueryResult<TData, TError = Error> {
+/** Factories infer raw/key types; short legacy annotations deliberately erase them. */
+export interface QueryResult<
+  TData,
+  TError = Error,
+  TQueryFnData = any,
+  TQueryKey extends QueryKey = any,
+> {
   /** The resolved query data, or `undefined` while loading */
   $data: Store<TData | undefined>
   /** The query error, or `null` if there is none */
@@ -155,7 +163,13 @@ export interface QueryResult<TData, TError = Error> {
    * Read scope-aware via `useUnit($observer)`. For tests, prefer
    * `scope.getState($observer)` over reading the default scope state.
    */
-  $observer: Store<QueryObserver<TData, TError> | null>
+  $observer: Store<QueryObserver<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    TQueryKey
+  > | null>
   /**
    * The QueryClient store this query is bound to. Frozen if a client was
    * passed explicitly to the factory; otherwise points at the global
@@ -195,15 +209,15 @@ export interface CreateInfiniteQueryOptions<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 > extends Omit<
-  InfiniteQueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData,
-    ResolvedQueryKey<TQueryKey>,
-    TPageParam
-  >,
-  'queryKey' | 'enabled' | 'refetchInterval'
-> {
+    InfiniteQueryObserverOptions<
+      TQueryFnData,
+      TError,
+      TData,
+      ResolvedQueryKey<TQueryKey>,
+      TPageParam
+    >,
+    'queryKey' | 'enabled' | 'refetchInterval'
+  > {
   queryKey: TQueryKey
   enabled?: StoreOrValue<boolean>
   /** See {@link CreateQueryOptions.refetchInterval}. */
@@ -220,10 +234,13 @@ export interface CreateInfiniteQueryOptions<
   name?: string
 }
 
+/** Factories infer raw/key types; short legacy annotations deliberately erase them. */
 export interface InfiniteQueryResult<
   TData,
   TError = Error,
   TPageParam = unknown,
+  TQueryFnData = any,
+  TQueryKey extends QueryKey = any,
 > {
   /**
    * The selected/displayed data. Defaults to `InfiniteData<TQueryFnData, TPageParam>`
@@ -252,9 +269,13 @@ export interface InfiniteQueryResult<
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
   /** See {@link QueryResult.$observer}. */
-  $observer: Store<
-    InfiniteQueryObserver<any, TError, TData, QueryKey, TPageParam> | null
-  >
+  $observer: Store<InfiniteQueryObserver<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey,
+    TPageParam
+  > | null>
   /** See {@link QueryResult.$queryClient}. */
   $queryClient: Store<QueryClient | null>
   /** See {@link QueryResult.finished}. */
@@ -274,12 +295,13 @@ export type CreateMutationOptions<
   name?: string
 }
 
-export type MutationStatus = 'idle' | 'pending' | 'success' | 'error'
+export type MutationStatus = NativeMutationStatus
 
 export interface MutationResult<
   TData = unknown,
   TError = Error,
   TVariables = void,
+  TOnMutateResult = any,
 > {
   /** The mutation result data, or `undefined` before success */
   $data: Store<TData | undefined>
@@ -300,7 +322,12 @@ export interface MutationResult<
   /** `true` when the mutation has not yet been triggered */
   $isIdle: Store<boolean>
   /** Per-scope MutationObserver. Created on `start()`. See {@link QueryResult.$observer}. */
-  $observer: Store<MutationObserver<TData, TError, TVariables, any> | null>
+  $observer: Store<MutationObserver<
+    TData,
+    TError,
+    TVariables,
+    TOnMutateResult
+  > | null>
   /** See {@link QueryResult.$queryClient}. */
   $queryClient: Store<QueryClient | null>
   /** Triggers the mutation with the given variables */
@@ -312,9 +339,24 @@ export interface MutationResult<
    */
   mutateWith: EventCallable<{
     variables: TVariables
-    onSuccess?: MutateOptions<TData, TError, TVariables>['onSuccess']
-    onError?: MutateOptions<TData, TError, TVariables>['onError']
-    onSettled?: MutateOptions<TData, TError, TVariables>['onSettled']
+    onSuccess?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSuccess']
+    onError?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onError']
+    onSettled?: MutateOptions<
+      TData,
+      TError,
+      TVariables,
+      TOnMutateResult
+    >['onSettled']
   }>
   /** Resets the mutation state back to idle */
   reset: EventCallable<void>
@@ -414,27 +456,47 @@ export interface CreateQueriesOptions<
   /** Shared QueryObserver defaults applied on top of `query(item)`. */
   staleTime?: number
   gcTime?: number
-  retry?: QueryObserverOptions<TQueryFnData, TError, TData>['retry']
-  retryDelay?: QueryObserverOptions<TQueryFnData, TError, TData>['retryDelay']
+  retry?: QueryObserverOptions<
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
+  >['retry']
+  retryDelay?: QueryObserverOptions<
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
+  >['retryDelay']
   refetchOnMount?: QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
   >['refetchOnMount']
   refetchOnReconnect?: QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
   >['refetchOnReconnect']
   refetchOnWindowFocus?: QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
   >['refetchOnWindowFocus']
   networkMode?: QueryObserverOptions<
-    TQueryFnData,
-    TError,
-    TData
+    NoInfer<TQueryFnData>,
+    NoInfer<TError>,
+    NoInfer<TData>,
+    NoInfer<TQueryFnData>,
+    NoInfer<TQueryKey>
   >['networkMode']
 }
 
@@ -487,7 +549,7 @@ export interface QueriesResult<TItem, TData = unknown, TError = Error> {
 }
 
 /** Query calls use the default client or an explicit first argument. */
-export type QueryArguments<TOptions> =
+export type FactoryArguments<TOptions> =
   | [options: TOptions]
   | [queryClient: QueryClient, options: TOptions]
 
@@ -499,15 +561,17 @@ export type SourceValue<TSource extends OptionsSource> =
   TSource extends Store<infer V>
     ? V
     : {
-        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V> ? V : never
+        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V>
+          ? V
+          : never
       }
 
-type FactoryOverrides<Interval> = {
+type QueryFactoryOverrides<Interval> = {
   name?: string
   enabled?: StoreOrValue<boolean>
   refetchInterval?: Interval | Store<number | false | undefined>
 }
-type FactoryOnly<Options> = {
+type ForbiddenTopLevelQueryOptions<Options> = {
   [P in Exclude<keyof Options, 'enabled' | 'refetchInterval'>]?: never
 }
 
@@ -531,7 +595,7 @@ export type CreateQueryFactoryOptions<
     QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
     'queryKey'
   > & { queryKey: NoInfer<TQueryKey> }
-} & FactoryOverrides<
+} & QueryFactoryOverrides<
   QueryObserverOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TError>,
@@ -540,7 +604,7 @@ export type CreateQueryFactoryOptions<
     NoInfer<TQueryKey>
   >['refetchInterval']
 > &
-  FactoryOnly<QueryObserverOptions>
+  ForbiddenTopLevelQueryOptions<QueryObserverOptions>
 
 export type CreateInfiniteQueryFactoryOptions<
   TSource extends OptionsSource,
@@ -557,7 +621,7 @@ export type CreateInfiniteQueryFactoryOptions<
     InfiniteOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
     'queryKey'
   > & { queryKey: NoInfer<TQueryKey> }
-} & FactoryOverrides<
+} & QueryFactoryOverrides<
   InfiniteOptions<
     NoInfer<TQueryFnData>,
     NoInfer<TError>,
@@ -566,4 +630,21 @@ export type CreateInfiniteQueryFactoryOptions<
     NoInfer<TPageParam>
   >['refetchInterval']
 > &
-  FactoryOnly<InfiniteQueryObserverOptions>
+  ForbiddenTopLevelQueryOptions<InfiniteQueryObserverOptions>
+
+/** Core-owned capabilities used by adapters; values are resolved before publication. */
+export interface QueryObserverFactory<
+  TOptions extends QueryObserverOptions<any, any, any, any, any>,
+  TObserver,
+> {
+  readonly __options: Store<ResolvedQueryObserverOptions<TOptions>>
+  readonly __createObserver: (
+    client: QueryClient,
+    options: ResolvedQueryObserverOptions<TOptions>,
+  ) => TObserver
+}
+
+/** Core-owned per-item options capability used by family adapters. */
+export interface QueryFamilyOptionsProvider<TItem, TOptions> {
+  readonly __queryFor: (item: TItem) => TOptions
+}
