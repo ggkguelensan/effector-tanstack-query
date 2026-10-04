@@ -4,32 +4,29 @@ import type {
   DefaultError,
   InfiniteData,
   QueryClient,
+  FetchInfiniteQueryOptions,
   QueryKey,
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
-import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
-import type { ResolvedOptions } from './resolve'
+import { resolveFactoryArguments, resolveQueryOptions } from './resolve'
+import type {
+  ResolvedQueryObserverOptions,
+  QueryOptionsBinding,
+} from './resolve'
+import type { NoInfer } from './optionsCompat'
+import type { InfiniteOptions } from './optionsCompat'
 import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
   OptionsSource,
-  QueryArguments,
+  FactoryArguments,
   EffectorQueryKey,
   InfiniteQueryResult,
+  ResolvedQueryKey,
+  QueryObserverFactory,
 } from './types'
 
-type Observer<TQueryFnData, TError, TData, TPageParam> = InfiniteQueryObserver<
-  TQueryFnData,
-  TError,
-  TData,
-  QueryKey,
-  TPageParam
->
-
-type ObserverResult<TQueryFnData, TError, TData, TPageParam> = ReturnType<
-  Observer<TQueryFnData, TError, TData, TPageParam>['getCurrentResult']
->
-
+// Selected data must be inferred from queryFn/select, not from a result view.
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = DefaultError,
@@ -38,7 +35,7 @@ export function createInfiniteQuery<
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
 >(
-  ...args: QueryArguments<
+  ...args: FactoryArguments<
     CreateInfiniteQueryFactoryOptions<
       TSource,
       TQueryFnData,
@@ -48,7 +45,13 @@ export function createInfiniteQuery<
       TQueryKey
     >
   >
-): InfiniteQueryResult<TData, TError, TPageParam>
+): InfiniteQueryResult<
+  NoInfer<TData>,
+  TError,
+  TPageParam,
+  TQueryFnData,
+  TQueryKey
+>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -63,7 +66,13 @@ export function createInfiniteQuery<
     TData,
     TQueryKey
   >,
-): InfiniteQueryResult<TData, TError, TPageParam>
+): InfiniteQueryResult<
+  NoInfer<TData>,
+  TError,
+  TPageParam,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -79,7 +88,13 @@ export function createInfiniteQuery<
     TData,
     TQueryKey
   >,
-): InfiniteQueryResult<TData, TError, TPageParam>
+): InfiniteQueryResult<
+  NoInfer<TData>,
+  TError,
+  TPageParam,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+>
 export function createInfiniteQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -87,7 +102,7 @@ export function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 >(
-  ...args: QueryArguments<
+  ...args: FactoryArguments<
     | CreateInfiniteQueryOptions<
         TQueryFnData,
         TError,
@@ -104,17 +119,51 @@ export function createInfiniteQuery<
         any
       >
   >
-): InfiniteQueryResult<TData, TError, TPageParam> {
-  const [explicitClient, options] = resolveQueryArguments(args)
+): InfiniteQueryResult<
+  NoInfer<TData>,
+  TError,
+  TPageParam,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+> {
+  const [explicitClient, options] = resolveFactoryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
-  const definition = resolveQueryDefinition(options)
+  type Key = ResolvedQueryKey<TQueryKey>
+  type NativeOptions = InfiniteOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    Key,
+    TPageParam
+  >
+  type Options = ResolvedQueryObserverOptions<NativeOptions>
+  type Observer = InfiniteQueryObserver<
+    TQueryFnData,
+    TError,
+    TData,
+    Key,
+    TPageParam
+  >
+  const binding = resolveQueryOptions<NativeOptions>(
+    options,
+  ) satisfies QueryOptionsBinding<
+    Options,
+    NativeOptions,
+    FetchInfiniteQueryOptions<
+      TQueryFnData,
+      TError,
+      TQueryFnData,
+      Key,
+      TPageParam
+    >
+  >
 
   const base = createBaseQuery<
     TData,
     TError,
-    ObserverResult<TQueryFnData, TError, TData, TPageParam>,
-    Observer<TQueryFnData, TError, TData, TPageParam>,
+    ReturnType<Observer['getCurrentResult']>,
+    Observer & { options: NativeOptions },
     {
       $hasNextPage: ReturnType<typeof createStore<boolean>>
       $hasPreviousPage: ReturnType<typeof createStore<boolean>>
@@ -124,19 +173,22 @@ export function createInfiniteQuery<
       $isFetchPreviousPageError: ReturnType<typeof createStore<boolean>>
       fetchNextPage: ReturnType<typeof createEvent<void>>
       fetchPreviousPage: ReturnType<typeof createEvent<void>>
-    }
+    },
+    Options,
+    NativeOptions
   >(
     explicitClient,
-    { definition, name },
+    { binding, name },
     {
       createObserver: (qc, options) =>
-        new InfiniteQueryObserver<
-          TQueryFnData,
-          TError,
-          TData,
-          QueryKey,
-          TPageParam
-        >(qc, options as any),
+        new InfiniteQueryObserver<TQueryFnData, TError, TData, Key, TPageParam>(
+          qc,
+          options,
+        ) as Observer & {
+          // InfiniteQueryObserver inherits .options without its page metadata.
+          // This instance was constructed with the complete native options.
+          options: NativeOptions
+        },
       setupExtras: () => {
         const hasNextPageUpdated = createEvent<boolean>()
         const hasPreviousPageUpdated = createEvent<boolean>()
@@ -247,12 +299,18 @@ export function createInfiniteQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchInfiniteQuery(definition.prefetch(options) as any)
+      return qc.fetchInfiniteQuery(binding.prefetch(options))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
 
-  const result: InfiniteQueryResult<TData, TError, TPageParam> = {
+  const result: InfiniteQueryResult<
+    TData,
+    TError,
+    TPageParam,
+    TQueryFnData,
+    ResolvedQueryKey<TQueryKey>
+  > = {
     $data: base.$data,
     $error: base.$error,
     $status: base.$status,
@@ -281,18 +339,21 @@ export function createInfiniteQuery<
 
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
-      new InfiniteQueryObserver<
-        TQueryFnData,
-        TError,
-        TData,
-        QueryKey,
-        TPageParam
-      >(qc, definition.create(options) as any),
+    value: ((qc: QueryClient, options: Options) =>
+      new InfiniteQueryObserver<TQueryFnData, TError, TData, Key, TPageParam>(
+        qc,
+        binding.create(options),
+      )) satisfies QueryObserverFactory<
+      NativeOptions,
+      Observer
+    >['__createObserver'],
   })
   Object.defineProperty(result, '__options', {
     enumerable: false,
-    value: base.$options,
+    value: base.$options satisfies QueryObserverFactory<
+      NativeOptions,
+      Observer
+    >['__options'],
   })
 
   return result

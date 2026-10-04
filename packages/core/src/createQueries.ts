@@ -7,21 +7,32 @@ import {
   type Store,
 } from 'effector'
 import { QueryObserver, hashKey } from '@tanstack/query-core'
-import type { QueryClient } from '@tanstack/query-core'
+import type {
+  QueryClient,
+  QueryObserverOptions,
+  FetchQueryOptions,
+} from '@tanstack/query-core'
 import { $queryClient as $globalQueryClient } from './queryClient'
 import { sidConfig, warnMissingName } from './createBaseQuery'
 import type {
   CreateQueriesOptions,
   QueriesResult,
   QueryItemState,
+  QueryFamilyOptionsProvider,
+  FactoryArguments,
 } from './types'
 
-interface ObserverEntry<TData, TError> {
-  observer: QueryObserver<TData, TError>
+interface QueryObserverEntry<
+  TQueryFnData,
+  TError,
+  TData,
+  TQueryKey extends ReadonlyArray<unknown>,
+> {
+  observer: QueryObserver<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>
   unsubscribe: (() => void) | null
 }
 
-const EMPTY_ITEMS: ReadonlyArray<QueryItemState<unknown, unknown, unknown>> = []
+const EMPTY_ITEMS: ReadonlyArray<never> = []
 
 /**
  * Reactive family of parallel queries indexed by a source store. See
@@ -73,52 +84,56 @@ export function createQueries<
   TData = TQueryFnData,
   TQueryKey extends ReadonlyArray<unknown> = ReadonlyArray<unknown>,
 >(
-  arg1:
-    | QueryClient
-    | CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
-  arg2?: CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
+  ...args: FactoryArguments<
+    CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>
+  >
 ): QueriesResult<TItem, TData, TError> {
-  const [explicitClient, options] = parseArgs<
-    TItem,
-    TQueryFnData,
-    TError,
-    TData,
-    TQueryKey
-  >(arg1, arg2)
+  if (args.length === 2) return buildQueries(args[0], args[1])
+  return buildQueries(null, args[0])
+}
 
+function buildQueries<
+  TItem,
+  TQueryFnData,
+  TError,
+  TData,
+  TQueryKey extends ReadonlyArray<unknown>,
+>(
+  explicitClient: QueryClient | null,
+  options: CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
+): QueriesResult<TItem, TData, TError> {
   const { name, source, query, ...sharedOptions } = options
 
   if (!name) warnMissingName('createQueries')
 
   const $queryClient: Store<QueryClient | null> = explicitClient
-    ? createStore(explicitClient as QueryClient | null, {
+    ? createStore<QueryClient | null>(explicitClient, {
         serialize: 'ignore',
       })
     : $globalQueryClient
 
   // Per-scope observer storage. Map keyed by queryKey hash.
-  const $observers = createStore<Map<string, ObserverEntry<TData, TError>>>(
-    new Map(),
-    { serialize: 'ignore' },
-  )
+  const $observers = createStore<
+    Map<string, QueryObserverEntry<TQueryFnData, TError, TData, TQueryKey>>
+  >(new Map(), { serialize: 'ignore' })
 
   // Per-scope ref-count: number of active consumers that called mounted().
   // First mount subscribes observers, last unmount unsubscribes them.
   const $refCount = createStore<number>(0, { serialize: 'ignore' })
 
   // The serializable result snapshot.
-  const itemsUpdated = createEvent<
-    ReadonlyArray<QueryItemState<TItem, TData, TError>>
-  >()
+  const itemsUpdated =
+    createEvent<ReadonlyArray<QueryItemState<TItem, TData, TError>>>()
   const $items = createStore<
     ReadonlyArray<QueryItemState<TItem, TData, TError>>
-  >(EMPTY_ITEMS as ReadonlyArray<QueryItemState<TItem, TData, TError>>, {
+  >(EMPTY_ITEMS, {
     ...sidConfig(name, '$items'),
   }).on(itemsUpdated, (_, items) => items)
 
-  const observersChanged = createEvent<
-    Map<string, ObserverEntry<TData, TError>>
-  >()
+  const observersChanged =
+    createEvent<
+      Map<string, QueryObserverEntry<TQueryFnData, TError, TData, TQueryKey>>
+    >()
   $observers.on(observersChanged, (_, next) => next)
 
   const refCountChanged = createEvent<number>()
@@ -133,11 +148,14 @@ export function createQueries<
   // Snapshot helpers — pure, run from effects.
   function itemsFromObservers(
     src: ReadonlyArray<TItem>,
-    observers: Map<string, ObserverEntry<TData, TError>>,
+    observers: Map<
+      string,
+      QueryObserverEntry<TQueryFnData, TError, TData, TQueryKey>
+    >,
   ): ReadonlyArray<QueryItemState<TItem, TData, TError>> {
     return src.map((item) => {
       const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
+      const hash = hashKey(opts.queryKey)
       const entry = observers.get(hash)
       if (!entry) return defaultItemState(item)
       const r = entry.observer.getCurrentResult()
@@ -156,13 +174,21 @@ export function createQueries<
     })
   }
 
-  function buildObserverOptions(item: TItem) {
+  function buildObserverOptions(
+    item: TItem,
+  ): QueryObserverOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    TQueryKey
+  > {
     const itemOpts = query(item)
     return {
       ...sharedOptions,
       ...itemOpts,
       enabled: itemOpts.enabled ?? true,
-    } as ConstructorParameters<typeof QueryObserver<TQueryFnData, TError, TData>>[1]
+    }
   }
 
   // Diff source against current observers. Spawns / disposes observers
@@ -172,11 +198,17 @@ export function createQueries<
   function diffSource(
     qc: QueryClient,
     src: ReadonlyArray<TItem>,
-    prev: Map<string, ObserverEntry<TData, TError>>,
+    prev: Map<
+      string,
+      QueryObserverEntry<TQueryFnData, TError, TData, TQueryKey>
+    >,
     isMounted: boolean,
     dispatchRecompute: () => void,
   ): {
-    next: Map<string, ObserverEntry<TData, TError>>
+    next: Map<
+      string,
+      QueryObserverEntry<TQueryFnData, TError, TData, TQueryKey>
+    >
     items: ReadonlyArray<QueryItemState<TItem, TData, TError>>
   } {
     const next = new Map(prev)
@@ -184,16 +216,19 @@ export function createQueries<
 
     for (const item of src) {
       const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
+      const hash = hashKey(opts.queryKey)
       keep.add(hash)
       let entry = next.get(hash)
       if (!entry) {
-        const obs = new QueryObserver<TQueryFnData, TError, TData>(
-          qc,
-          buildObserverOptions(item) as any,
-        )
+        const obs = new QueryObserver<
+          TQueryFnData,
+          TError,
+          TData,
+          TQueryFnData,
+          TQueryKey
+        >(qc, buildObserverOptions(item))
         entry = {
-          observer: obs as unknown as QueryObserver<TData, TError>,
+          observer: obs,
           unsubscribe: null,
         }
         next.set(hash, entry)
@@ -202,7 +237,7 @@ export function createQueries<
         // (or other passthrough options). Keep observer options in sync.
         entry.observer.setOptions({
           ...entry.observer.options,
-          ...(buildObserverOptions(item) as any),
+          ...buildObserverOptions(item),
         })
       }
       // Ensure subscription state matches mount state — covers both
@@ -256,12 +291,8 @@ export function createQueries<
         }
       }
       const dispatchRecompute = scopeBind(recomputeFx, { safe: true })
-      return diffSource(
-        qc,
-        currentSource,
-        observers,
-        refCount > 0,
-        () => dispatchRecompute(),
+      return diffSource(qc, currentSource, observers, refCount > 0, () =>
+        dispatchRecompute(),
       )
     },
   })
@@ -324,12 +355,9 @@ export function createQueries<
 
   const refreshOneFx = attach({
     source: $observers,
-    effect: async (
-      observers,
-      item: TItem,
-    ) => {
+    effect: async (observers, item: TItem) => {
       const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
+      const hash = hashKey(opts.queryKey)
       const entry = observers.get(hash)
       if (!entry) return
       await entry.observer.refetch().catch(() => undefined)
@@ -352,7 +380,7 @@ export function createQueries<
             .fetchQuery({
               ...sharedOptions,
               ...opts,
-            } as any)
+            })
             .catch(() => undefined)
         }),
       )
@@ -396,7 +424,10 @@ export function createQueries<
   // deduped-by-queryHash inflight promise to throw at React.
   Object.defineProperty(result, '__queryFor', {
     enumerable: false,
-    value: buildObserverOptions,
+    value: buildObserverOptions satisfies QueryFamilyOptionsProvider<
+      TItem,
+      FetchQueryOptions<TQueryFnData, TError, TQueryFnData, TQueryKey>
+    >['__queryFor'],
   })
 
   return result
@@ -415,28 +446,4 @@ export function createQueries<
       fetchStatus: 'idle',
     }
   }
-}
-
-function parseArgs<TItem, TQueryFnData, TError, TData, TQueryKey extends ReadonlyArray<unknown>>(
-  arg1:
-    | QueryClient
-    | CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
-  arg2?: CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
-): [
-  QueryClient | null,
-  CreateQueriesOptions<TItem, TQueryFnData, TError, TData, TQueryKey>,
-] {
-  if (arg2 !== undefined) {
-    return [arg1 as QueryClient, arg2]
-  }
-  return [
-    null,
-    arg1 as CreateQueriesOptions<
-      TItem,
-      TQueryFnData,
-      TError,
-      TData,
-      TQueryKey
-    >,
-  ]
 }

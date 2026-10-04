@@ -29,6 +29,19 @@ describe('createQuery factory form', () => {
     vi.useRealTimers()
   })
 
+  it('uses factory options when an optional top-level key is explicitly undefined', async () => {
+    const query = createQuery(client, {
+      source: createStore(7),
+      query: (id) => ({ queryKey: ['optional-key', id], queryFn: () => id }),
+      queryKey: undefined,
+    })
+    const scope = fork()
+    await allSettled(query.prefetch, { scope })
+    await allSettled(query.mounted, { scope })
+    expect(client.getQueryData(['optional-key', 7])).toBe(7)
+    expect(scope.getState(query.$data)).toBe(7)
+  })
+
   it('resolves one coherent options object per source transaction, including nested keys', async () => {
     const changed = createEvent<number>()
     const $id = createStore(1).on(changed, (_, id) => id)

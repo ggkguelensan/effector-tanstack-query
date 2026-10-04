@@ -8,12 +8,14 @@ import type {
 import type {
   EffectorQueryKey,
   OptionsSource,
-  QueryArguments,
+  FactoryArguments,
   StoreOrValue,
+  SourceValue,
 } from './types'
+import type { NoInfer } from './optionsCompat'
 
-export function resolveQueryArguments<TOptions>(
-  args: QueryArguments<TOptions>,
+export function resolveFactoryArguments<TOptions>(
+  args: FactoryArguments<TOptions>,
 ): [QueryClient | null, TOptions] {
   if (args.length === 2) return args
   return [null, args[0]]
@@ -26,12 +28,12 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
   key.forEach((item, i) => {
     if (is.store(item)) {
       storePositions.push(i)
-      stores.push(item as Store<unknown>)
+      stores.push(item)
     }
   })
 
   if (stores.length === 0) {
-    return createStore(key as QueryKey)
+    return createStore(key)
   }
 
   return combine(stores).map<QueryKey>((values) =>
@@ -43,30 +45,69 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
 }
 
 /** Complete options at the adapter seam; runtime instances are never serialized. */
-export type ResolvedOptions = QueryObserverOptions<any, any, any, any, any> & {
+type AnyQueryObserverOptions = QueryObserverOptions<any, any, any, any, any>
+
+export type ResolvedQueryObserverOptions<
+  TOptions extends AnyQueryObserverOptions = AnyQueryObserverOptions,
+> = Omit<
+  TOptions,
+  | 'enabled'
+  | 'refetchInterval'
+  | 'notifyOnChangeProps'
+  | 'queryHash'
+  | '_defaulted'
+> & {
   enabled: boolean
-  queryKey: QueryKey
+  refetchInterval?: TOptions['refetchInterval'] | number | false
+  queryKey: NonNullable<TOptions['queryKey']>
+  notifyOnChangeProps?: AnyQueryObserverOptions['notifyOnChangeProps']
+  queryHash?: string
+  _defaulted?: boolean
 }
 
-type OptionsInput = {
+type QueryOptionsInput<
+  TOptions extends AnyQueryObserverOptions,
+  TSource extends OptionsSource,
+> = {
   enabled?: StoreOrValue<boolean>
-  refetchInterval?: unknown
+  refetchInterval?:
+    | TOptions['refetchInterval']
+    | Store<number | false | undefined>
   name?: string
 } & (
-  | { queryKey: EffectorQueryKey }
+  | (Omit<TOptions, 'queryKey' | 'enabled' | 'refetchInterval'> & {
+      queryKey: EffectorQueryKey
+    })
   | {
-      source: OptionsSource
-      query: (params: any) => QueryObserverOptions<any, any, any, any, any>
+      queryKey?: never
+      source: TSource
+      query: (
+        params: SourceValue<NoInfer<TSource>>,
+      ) => TOptions & { queryKey: NonNullable<TOptions['queryKey']> }
     }
 )
 
-function resolveFactoryOptions(
-  options: Extract<OptionsInput, { source: OptionsSource }>,
-): Store<ResolvedOptions> {
-  const { enabled, refetchInterval, name: _name, ...definition } = options
-  const $raw = (
-    is.store(definition.source) ? definition.source : combine(definition.source)
-  ).map(definition.query)
+function resolveFactoryOptions<
+  TOptions extends AnyQueryObserverOptions,
+  TSource extends OptionsSource,
+>(options: {
+  source: TSource
+  query: (
+    params: SourceValue<NoInfer<TSource>>,
+  ) => TOptions & { queryKey: NonNullable<TOptions['queryKey']> }
+  enabled?: StoreOrValue<boolean>
+  refetchInterval?:
+    | TOptions['refetchInterval']
+    | Store<number | false | undefined>
+  name?: string
+}): Store<ResolvedQueryObserverOptions<TOptions>> {
+  const { enabled, refetchInterval, name: _name, ...binding } = options
+  // Effector resolves one store or every field of a source shape. Its overloads
+  // cannot express this conditional result while TSource remains generic.
+  const $source = (
+    is.store(binding.source) ? binding.source : combine(binding.source)
+  ) as Store<SourceValue<TSource>>
+  const $raw = $source.map(binding.query)
   const $enabled = is.store(enabled)
     ? enabled
     : createStore(enabled, { skipVoid: false, serialize: 'ignore' })
@@ -75,7 +116,11 @@ function resolveFactoryOptions(
     : createStore(refetchInterval, { skipVoid: false, serialize: 'ignore' })
   return combine(
     { options: $raw, enabled: $enabled, interval: $interval },
-    ({ options, enabled, interval }) => {
+    ({
+      options,
+      enabled,
+      interval,
+    }): ResolvedQueryObserverOptions<TOptions> => {
       const effectiveEnabled = enabled ?? options.enabled ?? true
       if (typeof effectiveEnabled !== 'boolean') {
         throw new TypeError(
@@ -88,13 +133,13 @@ function resolveFactoryOptions(
         enabled: effectiveEnabled && typeof options.queryFn !== 'symbol',
         ...(interval !== undefined ? { refetchInterval: interval } : {}),
         notifyOnChangeProps: 'all',
-      } as ResolvedOptions
+      }
     },
   )
 }
 
-function getInlineUpdateBase(
-  previous: QueryObserverOptions<any, any, any, any, any>,
+function getInlineUpdateBase<TOptions extends AnyQueryObserverOptions>(
+  previous: TOptions,
   mount: boolean,
 ) {
   if (mount) return previous
@@ -104,56 +149,74 @@ function getInlineUpdateBase(
 }
 
 /** Execution policies differ intentionally: inline retains its pre-factory contract. */
-export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
-  if (!('queryKey' in options)) {
+export function resolveQueryOptions<
+  TOptions extends AnyQueryObserverOptions,
+  TSource extends OptionsSource = OptionsSource,
+>(options: QueryOptionsInput<TOptions, TSource>) {
+  if (options.queryKey === undefined) {
     const $options = resolveFactoryOptions(options)
     return {
       $options,
       $resolvedKey: $options.map((o) => o.queryKey),
       $enabled: $options.map((o) => o.enabled),
-      create: (current: ResolvedOptions) => current,
+      create: (current: ResolvedQueryObserverOptions<TOptions>) => current,
       update: (
-        _previous: QueryObserverOptions<any, any, any, any, any>,
-        current: ResolvedOptions,
+        _previous: TOptions,
+        current: ResolvedQueryObserverOptions<TOptions>,
         _mount: boolean,
       ) => current,
-      prefetch: (current: ResolvedOptions) => current,
+      prefetch: (current: ResolvedQueryObserverOptions<TOptions>) => current,
     }
   }
 
   // Preserve inline's original constructor, setOptions and prefetch behavior,
   // including resolved defaults, custom hashes and notification filters.
-  const { queryKey, enabled, name: _name, ...restOptions } = options
-  const interval = restOptions.refetchInterval
-  const $interval = is.store(interval)
-    ? (interval as Store<number | false | undefined>)
-    : undefined
-  if ($interval) delete restOptions.refetchInterval
-  const $resolvedKey = resolveKey(queryKey)
+  const { queryKey, enabled, name: _name, ...capturedOptions } = options
+  // Object rest copied this field unchanged; mapped generic types lose its
+  // precise declaration. Read the captured value without invoking a getter again.
+  const interval =
+    capturedOptions.refetchInterval as typeof options.refetchInterval
+  const $interval = is.store(interval) ? interval : undefined
+  if ($interval) delete capturedOptions.refetchInterval
+  // The only non-native value in this field was the Store removed above.
+  // Narrow that field without copying the captured object a second time.
+  const restOptions = capturedOptions as Omit<
+    typeof capturedOptions,
+    'refetchInterval'
+  > & {
+    refetchInterval?: TOptions['refetchInterval']
+  }
+  // Public inline overloads link the native key to the unwrapped tuple.
+  const $resolvedKey = resolveKey(queryKey) as Store<
+    NonNullable<TOptions['queryKey']>
+  >
   const $enabled = is.store(enabled) ? enabled : createStore(enabled ?? true)
   const $options = combine({
     queryKey: $resolvedKey,
     enabled: $enabled,
     refetchInterval:
       $interval ?? createStore<number | false | undefined>(false),
-  }).map(
-    ({ queryKey, enabled, refetchInterval }) =>
-      ({
-        ...restOptions,
-        queryKey,
-        enabled,
-        ...($interval ? { refetchInterval } : {}),
-      }) as ResolvedOptions,
-  )
+  }).map(({ queryKey, enabled, refetchInterval }) => ({
+    ...restOptions,
+    queryKey,
+    enabled,
+    ...($interval ? { refetchInterval } : {}),
+  }))
   return {
     $options,
     $resolvedKey,
     $enabled,
-    create: ({ queryKey, enabled }: ResolvedOptions) =>
-      ({ ...restOptions, queryKey, enabled }) as ResolvedOptions,
+    create: ({
+      queryKey,
+      enabled,
+    }: ResolvedQueryObserverOptions<TOptions>) => ({
+      ...restOptions,
+      queryKey,
+      enabled,
+    }),
     update: (
-      previous: QueryObserverOptions<any, any, any, any, any>,
-      current: ResolvedOptions,
+      previous: TOptions,
+      current: ResolvedQueryObserverOptions<TOptions>,
       mount: boolean,
     ) => {
       const base = getInlineUpdateBase(previous, mount)
@@ -164,27 +227,26 @@ export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
         ...($interval ? { refetchInterval: current.refetchInterval } : {}),
       }
     },
-    prefetch: ({ queryKey }: ResolvedOptions) =>
-      ({ ...restOptions, queryKey }) as QueryObserverOptions<
-        any,
-        any,
-        any,
-        any,
-        any
-      > & { queryKey: QueryKey },
+    prefetch: ({ queryKey }: ResolvedQueryObserverOptions<TOptions>) => ({
+      ...restOptions,
+      queryKey,
+    }),
   }
 }
-export interface QueryDefinition {
-  $options: Store<ResolvedOptions>
+/** Reactive options and the operation-specific policies consumed by query owners. */
+export interface QueryOptionsBinding<
+  TOptions extends ResolvedQueryObserverOptions = ResolvedQueryObserverOptions,
+  TObserverOptions extends AnyQueryObserverOptions = AnyQueryObserverOptions,
+  TFetchOptions = unknown,
+> {
+  $options: Store<TOptions>
   $resolvedKey: Store<QueryKey>
   $enabled: Store<boolean>
-  create: (current: ResolvedOptions) => ResolvedOptions
+  create: (current: TOptions) => TObserverOptions
   update: (
-    previous: QueryObserverOptions<any, any, any, any, any>,
-    current: ResolvedOptions,
+    previous: TObserverOptions,
+    current: TOptions,
     mount: boolean,
-  ) => ResolvedOptions
-  prefetch: (
-    current: ResolvedOptions,
-  ) => QueryObserverOptions<any, any, any, any, any> & { queryKey: QueryKey }
+  ) => TObserverOptions
+  prefetch: (current: TOptions) => TFetchOptions
 }

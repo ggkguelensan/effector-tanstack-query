@@ -1,18 +1,31 @@
 import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
-import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
+import type {
+  QueryClient,
+  FetchQueryOptions,
+  QueryKey,
+  DefaultError,
+  QueryObserverOptions,
+} from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
-import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
-import type { ResolvedOptions } from './resolve'
+import { resolveFactoryArguments, resolveQueryOptions } from './resolve'
+import type {
+  ResolvedQueryObserverOptions,
+  QueryOptionsBinding,
+} from './resolve'
+import type { NoInfer } from './optionsCompat'
 import type {
   CreateQueryOptions,
   CreateQueryFactoryOptions,
   OptionsSource,
-  QueryArguments,
+  FactoryArguments,
   EffectorQueryKey,
   QueryResult,
+  ResolvedQueryKey,
+  QueryObserverFactory,
 } from './types'
 
+// Selected data must be inferred from queryFn/select, not from a result view.
 export function createQuery<
   TQueryFnData = unknown,
   TError = DefaultError,
@@ -20,10 +33,10 @@ export function createQuery<
   const TQueryKey extends QueryKey = QueryKey,
   const TSource extends OptionsSource = OptionsSource,
 >(
-  ...args: QueryArguments<
+  ...args: FactoryArguments<
     CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>
   >
-): QueryResult<TData, TError>
+): QueryResult<NoInfer<TData>, TError, TQueryFnData, TQueryKey>
 export function createQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -31,7 +44,12 @@ export function createQuery<
   const TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 >(
   options: CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-): QueryResult<TData, TError>
+): QueryResult<
+  NoInfer<TData>,
+  TError,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+>
 export function createQuery<
   TQueryFnData = unknown,
   TError = Error,
@@ -40,34 +58,66 @@ export function createQuery<
 >(
   queryClient: QueryClient,
   options: CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-): QueryResult<TData, TError>
+): QueryResult<
+  NoInfer<TData>,
+  TError,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+>
 export function createQuery<
   TQueryFnData = unknown,
   TError = Error,
   TData = TQueryFnData,
   const TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 >(
-  ...args: QueryArguments<
+  ...args: FactoryArguments<
     | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>
     | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>
   >
-): QueryResult<TData, TError> {
-  const [explicitClient, options] = resolveQueryArguments(args)
+): QueryResult<
+  NoInfer<TData>,
+  TError,
+  TQueryFnData,
+  ResolvedQueryKey<TQueryKey>
+> {
+  const [explicitClient, options] = resolveFactoryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createQuery')
-  const definition = resolveQueryDefinition(options)
+  type Key = ResolvedQueryKey<TQueryKey>
+  type NativeOptions = QueryObserverOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    Key
+  >
+  type Options = ResolvedQueryObserverOptions<NativeOptions>
+  type Observer = QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>
+  const binding = resolveQueryOptions<NativeOptions>(
+    options,
+  ) satisfies QueryOptionsBinding<
+    Options,
+    NativeOptions,
+    FetchQueryOptions<TQueryFnData, TError, TQueryFnData, Key>
+  >
 
   const base = createBaseQuery<
     TData,
     TError,
-    ReturnType<QueryObserver<TQueryFnData, TError, TData>['getCurrentResult']>,
-    QueryObserver<TQueryFnData, TError, TData>
+    ReturnType<Observer['getCurrentResult']>,
+    Observer,
+    {},
+    Options,
+    NativeOptions
   >(
     explicitClient,
-    { definition, name },
+    { binding, name },
     {
       createObserver: (qc, options) =>
-        new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+        new QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>(
+          qc,
+          options,
+        ),
     },
   )
 
@@ -85,7 +135,7 @@ export function createQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchQuery(definition.prefetch(options) as any)
+      return qc.fetchQuery(binding.prefetch(options))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -94,7 +144,12 @@ export function createQuery<
   // default-scope observer (non-fork). Tests and advanced consumers that read
   // `query.observer` after `query.mounted()` see the live observer. For
   // fork-aware consumers, use `query.$observer` via `useUnit`.
-  const result: QueryResult<TData, TError> = {
+  const result: QueryResult<
+    TData,
+    TError,
+    TQueryFnData,
+    ResolvedQueryKey<TQueryKey>
+  > = {
     $data: base.$data,
     $error: base.$error,
     $status: base.$status,
@@ -104,10 +159,7 @@ export function createQuery<
     $isError: base.$isError,
     $isPlaceholderData: base.$isPlaceholderData,
     $fetchStatus: base.$fetchStatus,
-    $observer: base.$observer as unknown as QueryResult<
-      TData,
-      TError
-    >['$observer'],
+    $observer: base.$observer,
     $queryClient: base.$queryClient,
     refresh: base.refresh,
     prefetch,
@@ -122,15 +174,21 @@ export function createQuery<
   // suspended). Not part of the public API; not in TS types.
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
-      new QueryObserver<TQueryFnData, TError, TData>(
+    value: ((qc: QueryClient, options: Options) =>
+      new QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>(
         qc,
-        definition.create(options),
-      ),
+        binding.create(options),
+      )) satisfies QueryObserverFactory<
+      NativeOptions,
+      Observer
+    >['__createObserver'],
   })
   Object.defineProperty(result, '__options', {
     enumerable: false,
-    value: base.$options,
+    value: base.$options satisfies QueryObserverFactory<
+      NativeOptions,
+      Observer
+    >['__options'],
   })
 
   return result
