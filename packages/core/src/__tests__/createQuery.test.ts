@@ -332,8 +332,11 @@ describe('createQuery', () => {
       ) => { options: { queryKey: unknown }; destroy: () => void }
     }
 
+    const scope = fork()
+    const options = scope.getState(factory.__options)
+
     const observer = factory.__createObserver(queryClient, {
-      ...fork().getState(factory.__options),
+      ...options,
       queryKey: ['transient'],
       enabled: true,
     })

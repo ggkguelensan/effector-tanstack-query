@@ -123,8 +123,11 @@ describe('createInfiniteQuery (core)', () => {
       ) => InfiniteQueryObserver
     }
 
+    const scope = fork()
+    const options = scope.getState(factory.__options)
+
     const observer = factory.__createObserver(queryClient, {
-      ...fork().getState(factory.__options),
+      ...options,
       queryKey: ['inf-transient'],
       enabled: true,
     })
