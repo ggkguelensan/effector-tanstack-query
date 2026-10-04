@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useUnit } from 'effector-react'
+import type { Store } from 'effector'
 import { hydrate } from '@tanstack/query-core'
 import type {
   DehydratedState,
@@ -9,7 +10,9 @@ import type {
   HydrateOptions,
   MutateOptions,
   MutationFilters,
+  QueryClient,
   QueryFilters,
+  QueryObserverOptions,
   QueryStatus,
 } from '@tanstack/query-core'
 
@@ -425,19 +428,13 @@ function useObserverRerender(
   }, [observer])
 }
 
-type SuspenseOptions = import('@tanstack/query-core').QueryObserverOptions<
-  any,
-  any,
-  any,
-  any,
-  any
->
+type SuspenseOptions = QueryObserverOptions<any, any, any, any, any>
 interface SuspenseFactory<TObserver> {
   __createObserver(
-    qc: import('@tanstack/query-core').QueryClient,
+    qc: QueryClient,
     options: SuspenseOptions,
   ): TObserver
-  __options: import('effector').Store<SuspenseOptions>
+  __options: Store<SuspenseOptions>
 }
 
 export interface UseSuspenseQueryResult<TData, TError = Error> {
@@ -728,10 +725,8 @@ export function useSuspenseInfiniteQuery<
  */
 function useSuspenseObserver<
   TQuery extends {
-    $observer: import('effector').Store<TObserver | null>
-    $queryClient: import('effector').Store<
-      import('@tanstack/query-core').QueryClient | null
-    >
+    $observer: Store<TObserver | null>
+    $queryClient: Store<QueryClient | null>
   },
   TObserver extends {
     options: { queryKey: unknown }
