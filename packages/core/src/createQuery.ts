@@ -1,6 +1,11 @@
 import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
-import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
+import type {
+  QueryClient,
+  QueryKey,
+  DefaultError,
+  QueryObserverOptions,
+} from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
 import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
@@ -11,6 +16,7 @@ import type {
   QueryArguments,
   EffectorQueryKey,
   QueryResult,
+  ResolvedQueryKey,
 } from './types'
 
 export function createQuery<
@@ -55,19 +61,34 @@ export function createQuery<
   const [explicitClient, options] = resolveQueryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createQuery')
-  const definition = resolveQueryDefinition(options)
+  type Key = ResolvedQueryKey<TQueryKey>
+  type NativeOptions = QueryObserverOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    Key
+  >
+  type Options = ResolvedOptions<NativeOptions>
+  type Observer = QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>
+  const definition = resolveQueryDefinition<NativeOptions>(options)
 
   const base = createBaseQuery<
     TData,
     TError,
-    ReturnType<QueryObserver<TQueryFnData, TError, TData>['getCurrentResult']>,
-    QueryObserver<TQueryFnData, TError, TData>
+    ReturnType<Observer['getCurrentResult']>,
+    Observer,
+    {},
+    Options
   >(
     explicitClient,
     { definition, name },
     {
       createObserver: (qc, options) =>
-        new QueryObserver<TQueryFnData, TError, TData>(qc, options),
+        new QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>(
+          qc,
+          options,
+        ),
     },
   )
 
@@ -122,8 +143,8 @@ export function createQuery<
   // suspended). Not part of the public API; not in TS types.
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
-      new QueryObserver<TQueryFnData, TError, TData>(
+    value: (qc: QueryClient, options: Options) =>
+      new QueryObserver<TQueryFnData, TError, TData, TQueryFnData, Key>(
         qc,
         definition.create(options),
       ),

@@ -13,9 +13,12 @@ import type { QueryDefinition, ResolvedOptions } from './resolve'
  * The minimal shape of an observer that createBaseQuery knows how to drive.
  * Both QueryObserver and InfiniteQueryObserver satisfy this.
  */
-export interface BaseObserverLike<TResult> {
+export interface BaseObserverLike<
+  TResult,
+  TOptions extends ResolvedOptions = ResolvedOptions,
+> {
   options: { queryKey: QueryKey; _defaulted?: boolean; queryHash?: string }
-  setOptions(options: any): void
+  setOptions(options: TOptions): void
   subscribe(listener: (result: TResult) => void): () => void
   getCurrentResult(): TResult
   destroy(): void
@@ -45,7 +48,12 @@ export interface BaseObserverResult<TData, TError> {
   errorUpdatedAt: number
 }
 
-export interface BaseQueryStores<TData, TError, TObserver> {
+export interface BaseQueryStores<
+  TData,
+  TError,
+  TObserver,
+  TOptions extends ResolvedOptions = ResolvedOptions,
+> {
   $data: Store<TData | undefined>
   $error: Store<TError | null>
   $status: Store<QueryStatus>
@@ -71,7 +79,7 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   $resolvedKey: Store<QueryKey>
   /** Internal — used by the React suspense hooks. */
   $enabled: Store<boolean>
-  $options: Store<ResolvedOptions>
+  $options: Store<TOptions>
   refresh: EventCallable<void>
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
@@ -88,8 +96,10 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   }
 }
 
-export interface BaseQueryOptions {
-  definition: QueryDefinition
+export interface BaseQueryOptions<
+  TOptions extends ResolvedOptions = ResolvedOptions,
+> {
+  definition: QueryDefinition<TOptions>
   name?: string
 }
 
@@ -144,14 +154,12 @@ export interface CreateBaseQueryConfig<
   TData,
   TError,
   TResult extends BaseObserverResult<TData, TError>,
-  TObserver extends BaseObserverLike<TResult>,
+  TObserver extends BaseObserverLike<TResult, TOptions>,
   TExtraStores,
+  TOptions extends ResolvedOptions = ResolvedOptions,
 > {
   /** Build the observer for the current scope. Receives the resolved client. */
-  createObserver: (
-    queryClient: QueryClient,
-    initial: ResolvedOptions,
-  ) => TObserver
+  createObserver: (queryClient: QueryClient, initial: TOptions) => TObserver
   /**
    * Hook for query flavors that need additional stores/events (e.g. infinite
    * query's hasNextPage, fetchNextPage). Called once at factory time.
@@ -163,13 +171,21 @@ export function createBaseQuery<
   TData,
   TError,
   TResult extends BaseObserverResult<TData, TError>,
-  TObserver extends BaseObserverLike<TResult>,
+  TObserver extends BaseObserverLike<TResult, TOptions>,
   TExtraStores = {},
+  TOptions extends ResolvedOptions = ResolvedOptions,
 >(
   explicitClient: QueryClient | null,
-  options: BaseQueryOptions,
-  config: CreateBaseQueryConfig<TData, TError, TResult, TObserver, TExtraStores>,
-): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
+  options: BaseQueryOptions<TOptions>,
+  config: CreateBaseQueryConfig<
+    TData,
+    TError,
+    TResult,
+    TObserver,
+    TExtraStores,
+    TOptions
+  >,
+): BaseQueryStores<TData, TError, TObserver, TOptions> & TExtraStores {
   const { name, definition } = options
   const { $options, $resolvedKey, $enabled } = definition
 
@@ -247,10 +263,7 @@ export function createBaseQuery<
   // (including after key/enabled changes).
   const mountFx = attach({
     source: { qc: $effectiveClient, observer: $observer },
-    effect: (
-      { qc, observer: existingObserver },
-      currentOptions: ResolvedOptions,
-    ) => {
+    effect: ({ qc, observer: existingObserver }, currentOptions: TOptions) => {
       if (!qc) {
         throw new Error(
           '[@tanstack/query-effector] No QueryClient is set. Call setQueryClient(qc) before mounting, ' +
@@ -342,7 +355,7 @@ export function createBaseQuery<
   // wired in mountFx.
   const updateObserverFx = attach({
     source: $observer,
-    effect: (observer, currentOptions: ResolvedOptions) => {
+    effect: (observer, currentOptions: TOptions) => {
       if (observer)
         observer.setOptions(
           definition.update(observer.options, currentOptions, false),
