@@ -285,11 +285,7 @@ export function createBaseQuery<
 
       observerSubscriptions.get(observer)?.()
       observer.setOptions(
-        definition.update(
-          observer.options as ResolvedOptions,
-          currentOptions,
-          true,
-        ),
+        definition.update(observer.options, currentOptions, true),
       )
 
       const dispatch = (result: TResult) => {
@@ -349,11 +345,7 @@ export function createBaseQuery<
     effect: (observer, currentOptions: ResolvedOptions) => {
       if (observer)
         observer.setOptions(
-          definition.update(
-            observer.options as ResolvedOptions,
-            currentOptions,
-            false,
-          ),
+          definition.update(observer.options, currentOptions, false),
         )
     },
   })

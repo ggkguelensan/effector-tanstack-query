@@ -2,7 +2,7 @@ import { attach, createEvent, sample } from 'effector'
 import { QueryObserver } from '@tanstack/query-core'
 import type { QueryClient, QueryKey, DefaultError } from '@tanstack/query-core'
 import { createBaseQuery, warnMissingName } from './createBaseQuery'
-import { resolveQueryDefinition } from './resolve'
+import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
 import type {
   CreateQueryOptions,
@@ -47,16 +47,12 @@ export function createQuery<
   TData = TQueryFnData,
   const TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 >(
-  arg1:
-    | QueryClient
+  ...args: QueryArguments<
     | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>
-    | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>,
-  arg2?:
-    | CreateQueryOptions<TQueryFnData, TError, TData, TQueryKey>
-    | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>,
+    | CreateQueryFactoryOptions<any, TQueryFnData, TError, TData, any>
+  >
 ): QueryResult<TData, TError> {
-  const explicitClient = arg2 === undefined ? null : (arg1 as QueryClient)
-  const options = arg2 ?? (arg1 as Exclude<typeof arg1, QueryClient>)
+  const [explicitClient, options] = resolveQueryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createQuery')
   const definition = resolveQueryDefinition(options)

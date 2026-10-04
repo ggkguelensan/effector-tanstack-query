@@ -7,7 +7,7 @@ import type {
   QueryKey,
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
-import { resolveQueryDefinition } from './resolve'
+import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
 import type { ResolvedOptions } from './resolve'
 import type {
   CreateInfiniteQueryOptions,
@@ -87,8 +87,7 @@ export function createInfiniteQuery<
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends EffectorQueryKey = EffectorQueryKey,
 >(
-  arg1:
-    | QueryClient
+  ...args: QueryArguments<
     | CreateInfiniteQueryOptions<
         TQueryFnData,
         TError,
@@ -103,26 +102,10 @@ export function createInfiniteQuery<
         TPageParam,
         TData,
         any
-      >,
-  arg2?:
-    | CreateInfiniteQueryOptions<
-        TQueryFnData,
-        TError,
-        TPageParam,
-        TData,
-        TQueryKey
       >
-    | CreateInfiniteQueryFactoryOptions<
-        any,
-        TQueryFnData,
-        TError,
-        TPageParam,
-        TData,
-        any
-      >,
+  >
 ): InfiniteQueryResult<TData, TError, TPageParam> {
-  const explicitClient = arg2 === undefined ? null : (arg1 as QueryClient)
-  const options = arg2 ?? (arg1 as Exclude<typeof arg1, QueryClient>)
+  const [explicitClient, options] = resolveQueryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
   const definition = resolveQueryDefinition(options)

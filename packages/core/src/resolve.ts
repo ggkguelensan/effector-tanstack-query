@@ -1,11 +1,23 @@
 import { combine, createStore, is } from 'effector'
 import type { Store } from 'effector'
-import type { QueryKey, QueryObserverOptions } from '@tanstack/query-core'
+import type {
+  QueryClient,
+  QueryKey,
+  QueryObserverOptions,
+} from '@tanstack/query-core'
 import type {
   EffectorQueryKey,
   OptionsSource,
+  QueryArguments,
   StoreOrValue,
 } from './types'
+
+export function resolveQueryArguments<TOptions>(
+  args: QueryArguments<TOptions>,
+): [QueryClient | null, TOptions] {
+  if (args.length === 2) return args
+  return [null, args[0]]
+}
 
 export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
   const storePositions: Array<number> = []
@@ -81,6 +93,16 @@ function resolveFactoryOptions(
   )
 }
 
+function getInlineUpdateBase(
+  previous: QueryObserverOptions<any, any, any, any, any>,
+  mount: boolean,
+) {
+  if (mount) return previous
+
+  const { _defaulted, queryHash, ...rest } = previous
+  return rest
+}
+
 /** Execution policies differ intentionally: inline retains its pre-factory contract. */
 export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
   if (!('queryKey' in options)) {
@@ -91,7 +113,7 @@ export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
       $enabled: $options.map((o) => o.enabled),
       create: (current: ResolvedOptions) => current,
       update: (
-        _previous: ResolvedOptions,
+        _previous: QueryObserverOptions<any, any, any, any, any>,
         current: ResolvedOptions,
         _mount: boolean,
       ) => current,
@@ -130,15 +152,11 @@ export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
     create: ({ queryKey, enabled }: ResolvedOptions) =>
       ({ ...restOptions, queryKey, enabled }) as ResolvedOptions,
     update: (
-      previous: ResolvedOptions,
+      previous: QueryObserverOptions<any, any, any, any, any>,
       current: ResolvedOptions,
       mount: boolean,
     ) => {
-      let base = previous
-      if (!mount) {
-        const { _defaulted, queryHash, ...rest } = previous
-        base = rest as ResolvedOptions
-      }
+      const base = getInlineUpdateBase(previous, mount)
       return {
         ...base,
         queryKey: current.queryKey,
@@ -162,7 +180,7 @@ export interface QueryDefinition {
   $enabled: Store<boolean>
   create: (current: ResolvedOptions) => ResolvedOptions
   update: (
-    previous: ResolvedOptions,
+    previous: QueryObserverOptions<any, any, any, any, any>,
     current: ResolvedOptions,
     mount: boolean,
   ) => ResolvedOptions
