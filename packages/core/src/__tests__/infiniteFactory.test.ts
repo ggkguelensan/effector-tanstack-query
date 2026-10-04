@@ -21,6 +21,23 @@ describe('createInfiniteQuery factory form', () => {
     vi.useRealTimers()
   })
 
+  it('uses factory page options when an optional top-level key is explicitly undefined', async () => {
+    const query = createInfiniteQuery(client, {
+      source: createStore(7),
+      query: (id) => ({
+        queryKey: ['optional-page-key', id],
+        initialPageParam: 0,
+        queryFn: ({ pageParam }: { pageParam: number }) => id + pageParam,
+        getNextPageParam: () => undefined,
+      }),
+      queryKey: undefined,
+    })
+    const scope = fork()
+    await allSettled(query.prefetch, { scope })
+    await allSettled(query.mounted, { scope })
+    expect(scope.getState(query.$data)).toEqual({ pages: [7], pageParams: [0] })
+  })
+
   it('keeps page cursors and selected data while switching source keys', async () => {
     const changed = createEvent<string>()
     const $category = createStore('a').on(changed, (_, v) => v)

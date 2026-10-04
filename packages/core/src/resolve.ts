@@ -68,6 +68,7 @@ type OptionsInput<TOptions extends NativeOptions = NativeOptions> = {
       queryKey: EffectorQueryKey
     })
   | {
+      queryKey?: never
       source: OptionsSource
       query: (
         params: any,
@@ -127,7 +128,7 @@ function getInlineUpdateBase(previous: NativeOptions, mount: boolean) {
 export function resolveQueryDefinition<TOptions extends NativeOptions>(
   options: OptionsInput<TOptions>,
 ): QueryDefinition<ResolvedOptions<TOptions>> {
-  if (!('queryKey' in options)) {
+  if (options.queryKey === undefined) {
     const $options = resolveFactoryOptions(options)
     return {
       $options,
