@@ -55,6 +55,7 @@ type OptionsInput = {
 } & (
   | { queryKey: EffectorQueryKey }
   | {
+      queryKey?: never
       source: OptionsSource
       query: (params: any) => QueryObserverOptions<any, any, any, any, any>
     }
@@ -105,7 +106,7 @@ function getInlineUpdateBase(
 
 /** Execution policies differ intentionally: inline retains its pre-factory contract. */
 export function resolveQueryDefinition(options: OptionsInput): QueryDefinition {
-  if (!('queryKey' in options)) {
+  if (options.queryKey === undefined) {
     const $options = resolveFactoryOptions(options)
     return {
       $options,
