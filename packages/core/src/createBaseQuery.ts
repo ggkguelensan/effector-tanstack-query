@@ -396,7 +396,6 @@ export function createBaseQuery<
 
   sample({
     clock: $options,
-    source: $options,
     filter: $isMounted,
     target: updateObserverFx,
   })
