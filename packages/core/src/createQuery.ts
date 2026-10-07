@@ -85,7 +85,7 @@ export function createQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchQuery(definition.prefetch(options) as any)
+      return qc.fetchQuery(definition.prefetch(options))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })

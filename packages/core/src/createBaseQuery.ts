@@ -45,7 +45,12 @@ export interface BaseObserverResult<TData, TError> {
   errorUpdatedAt: number
 }
 
-export interface BaseQueryStores<TData, TError, TObserver> {
+export interface BaseQueryStores<
+  TData,
+  TError,
+  TObserver,
+  TOptions extends ResolvedOptions = ResolvedOptions,
+> {
   $data: Store<TData | undefined>
   $error: Store<TError | null>
   $status: Store<QueryStatus>
@@ -71,7 +76,7 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   $resolvedKey: Store<QueryKey>
   /** Internal — used by the React suspense hooks. */
   $enabled: Store<boolean>
-  $options: Store<ResolvedOptions>
+  $options: Store<TOptions>
   refresh: EventCallable<void>
   mounted: EventCallable<void>
   unmounted: EventCallable<void>
@@ -88,8 +93,8 @@ export interface BaseQueryStores<TData, TError, TObserver> {
   }
 }
 
-export interface BaseQueryOptions {
-  definition: QueryDefinition
+export interface BaseQueryOptions<TOptions extends ResolvedOptions> {
+  definition: QueryDefinition<TOptions>
   name?: string
 }
 
@@ -165,11 +170,18 @@ export function createBaseQuery<
   TResult extends BaseObserverResult<TData, TError>,
   TObserver extends BaseObserverLike<TResult>,
   TExtraStores = {},
+  TOptions extends ResolvedOptions = ResolvedOptions,
 >(
   explicitClient: QueryClient | null,
-  options: BaseQueryOptions,
-  config: CreateBaseQueryConfig<TData, TError, TResult, TObserver, TExtraStores>,
-): BaseQueryStores<TData, TError, TObserver> & TExtraStores {
+  options: BaseQueryOptions<TOptions>,
+  config: CreateBaseQueryConfig<
+    TData,
+    TError,
+    TResult,
+    TObserver,
+    TExtraStores
+  >,
+): BaseQueryStores<TData, TError, TObserver, TOptions> & TExtraStores {
   const { name, definition } = options
   const { $options, $resolvedKey, $enabled } = definition
 
@@ -247,10 +259,7 @@ export function createBaseQuery<
   // (including after key/enabled changes).
   const mountFx = attach({
     source: { qc: $effectiveClient, observer: $observer },
-    effect: (
-      { qc, observer: existingObserver },
-      currentOptions: ResolvedOptions,
-    ) => {
+    effect: ({ qc, observer: existingObserver }, currentOptions: TOptions) => {
       if (!qc) {
         throw new Error(
           '[@tanstack/query-effector] No QueryClient is set. Call setQueryClient(qc) before mounting, ' +
@@ -342,7 +351,7 @@ export function createBaseQuery<
   // wired in mountFx.
   const updateObserverFx = attach({
     source: $observer,
-    effect: (observer, currentOptions: ResolvedOptions) => {
+    effect: (observer, currentOptions: TOptions) => {
       if (observer)
         observer.setOptions(
           definition.update(observer.options, currentOptions, false),

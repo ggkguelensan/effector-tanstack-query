@@ -8,7 +8,7 @@ import type {
 } from '@tanstack/query-core'
 import { createBaseQuery, sidConfig, warnMissingName } from './createBaseQuery'
 import { resolveQueryArguments, resolveQueryDefinition } from './resolve'
-import type { ResolvedOptions } from './resolve'
+import type { InfiniteOptions } from './optionsCompat'
 import type {
   CreateInfiniteQueryOptions,
   CreateInfiniteQueryFactoryOptions,
@@ -108,7 +108,15 @@ export function createInfiniteQuery<
   const [explicitClient, options] = resolveQueryArguments(args)
   const { name } = options
   if (!name) warnMissingName('createInfiniteQuery')
-  const definition = resolveQueryDefinition(options)
+  type NativeOptions = InfiniteOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    any,
+    TPageParam
+  >
+  const definition = resolveQueryDefinition<NativeOptions>(options)
+  type Options = ReturnType<typeof definition.$options.getState>
 
   const base = createBaseQuery<
     TData,
@@ -124,7 +132,8 @@ export function createInfiniteQuery<
       $isFetchPreviousPageError: ReturnType<typeof createStore<boolean>>
       fetchNextPage: ReturnType<typeof createEvent<void>>
       fetchPreviousPage: ReturnType<typeof createEvent<void>>
-    }
+    },
+    Options
   >(
     explicitClient,
     { definition, name },
@@ -247,7 +256,7 @@ export function createInfiniteQuery<
     },
     effect: ({ qc, options }) => {
       if (!qc || !options.enabled) return
-      return qc.fetchInfiniteQuery(definition.prefetch(options) as any)
+      return qc.fetchInfiniteQuery(definition.prefetch(options))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
@@ -281,7 +290,7 @@ export function createInfiniteQuery<
 
   Object.defineProperty(result, '__createObserver', {
     enumerable: false,
-    value: (qc: QueryClient, options: ResolvedOptions) =>
+    value: (qc: QueryClient, options: Options) =>
       new InfiniteQueryObserver<
         TQueryFnData,
         TError,
