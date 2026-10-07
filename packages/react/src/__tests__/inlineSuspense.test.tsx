@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   act,
   cleanup,
@@ -9,50 +9,87 @@ import {
 } from '@testing-library/react'
 import { allSettled, createEvent, createStore, fork } from 'effector'
 import { Provider } from 'effector-react'
-import { QueryClient, type QueryObserver } from '@tanstack/query-core'
-import * as core from '@effector-tanstack-query/core'
-import * as hooks from '../index'
+import { QueryClient } from '@tanstack/query-core'
+import { createInfiniteQuery, createQuery } from '@effector-tanstack-query/core'
+import {
+  useSuspenseInfiniteQuery,
+  useSuspenseQueries,
+  useSuspenseQuery,
+} from '../index'
 
-afterEach(cleanup)
-it.each(['single', 'tuple', 'infinite'])(
-  'inline %s Suspense uses scoped parameters before mount and after key changes',
-  async (kind) => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
-    })
-    const changed = createEvent<number>()
-    const $id = createStore(1).on(changed, (_, n) => n)
-    const calls: number[] = []
-    const options = {
+const clients: QueryClient[] = []
+afterEach(() => {
+  cleanup()
+  for (const client of clients.splice(0)) client.clear()
+})
+
+function setup() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
+  })
+  clients.push(client)
+  const changed = createEvent<number>()
+  const $id = createStore(1).on(changed, (_, n) => n)
+  const scope = fork({ values: [[$id, 3]] })
+  const calls: number[] = []
+  return { client, changed, $id, scope, calls }
+}
+
+describe('inline queries in Suspense', () => {
+  it.each(['single', 'tuple'] as const)(
+    '%s reads scoped keys before mount and follows key changes',
+    async (mode) => {
+      const { client, changed, $id, scope, calls } = setup()
+      const query = createQuery(client, {
+        queryKey: ['suspense', $id],
+        queryFn: async ({ queryKey }) => {
+          calls.push(queryKey[1])
+          return queryKey[1] * 10
+        },
+      })
+      const queries = [query] as const
+      function Single() {
+        const { data } = useSuspenseQuery(query)
+        return <span>{data}</span>
+      }
+      function Tuple() {
+        const [result] = useSuspenseQueries(queries)
+        return <span>{result.data}</span>
+      }
+      const view = render(
+        <Provider value={scope}>
+          <Suspense fallback="pending">
+            {mode === 'single' ? <Single /> : <Tuple />}
+          </Suspense>
+        </Provider>,
+      )
+      await waitFor(() => view.getByText('30'))
+      expect(calls).toEqual([3])
+      await act(() => allSettled(changed, { scope, params: 4 }))
+      await waitFor(() => view.getByText('40'))
+      expect(calls).toEqual([3, 4])
+      view.unmount()
+      expect(scope.getState(query.$observer)).toBeNull()
+    },
+  )
+
+  it('infinite reads scoped keys, follows key changes and loads next pages', async () => {
+    const { client, changed, $id, scope, calls } = setup()
+    const query = createInfiniteQuery(client, {
       queryKey: ['suspense', $id],
-      queryFn: async ({ queryKey, pageParam = 0 }: any) => {
+      initialPageParam: 0,
+      queryFn: async ({ queryKey, pageParam }) => {
         calls.push(queryKey[1])
         return queryKey[1] * 10 + pageParam
       },
-    }
-    const query =
-      kind === 'infinite'
-        ? core.createInfiniteQuery(client, {
-            ...options,
-            initialPageParam: 0,
-            getNextPageParam: () => 1,
-          })
-        : core.createQuery(client, options)
-    const scope = fork({ values: [[$id, 3]] })
-    const queries = [query] as const
+      getNextPageParam: () => 1,
+    })
     function Page() {
-      const result =
-        kind === 'infinite'
-          ? hooks.useSuspenseInfiniteQuery(query as any)
-          : kind === 'tuple'
-            ? hooks.useSuspenseQueries(queries)[0]
-            : hooks.useSuspenseQuery(query)
+      const { data, fetchNextPage } = useSuspenseInfiniteQuery(query)
       return (
         <>
-          <span>{JSON.stringify(result.data)}</span>
-          {'fetchNextPage' in result && (
-            <button onClick={result.fetchNextPage as () => void}>next</button>
-          )}
+          <span>{JSON.stringify(data)}</span>
+          <button onClick={fetchNextPage}>next</button>
         </>
       )
     }
@@ -64,31 +101,20 @@ it.each(['single', 'tuple', 'infinite'])(
       </Provider>,
     )
     await waitFor(() =>
-      view.getByText(
-        kind === 'infinite' ? '{"pages":[30],"pageParams":[0]}' : '30',
-      ),
+      view.getByText('{"pages":[30],"pageParams":[0]}'),
     )
     expect(calls).toEqual([3])
     await act(() => allSettled(changed, { scope, params: 4 }))
     await waitFor(() =>
-      view.getByText(
-        kind === 'infinite' ? '{"pages":[40],"pageParams":[0]}' : '40',
-      ),
+      view.getByText('{"pages":[40],"pageParams":[0]}'),
     )
     expect(calls).toEqual([3, 4])
-    if (kind === 'infinite') {
-      fireEvent.click(view.getByText('next'))
-      await waitFor(() =>
-        view.getByText('{"pages":[40,41],"pageParams":[0,1]}'),
-      )
-      expect(calls).toEqual([3, 4, 4])
-    }
+    fireEvent.click(view.getByText('next'))
+    await waitFor(() =>
+      view.getByText('{"pages":[40,41],"pageParams":[0,1]}'),
+    )
+    expect(calls).toEqual([3, 4, 4])
     view.unmount()
-    expect(
-      scope.getState<QueryObserver<any, any, any, any, any> | null>(
-        query.$observer,
-      ),
-    ).toBeNull()
-    client.clear()
-  },
-)
+    expect(scope.getState(query.$observer)).toBeNull()
+  })
+})
