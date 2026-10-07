@@ -34,11 +34,13 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
     return createStore(key)
   }
 
-  return combine(stores).map<QueryKey>((values) =>
-    key.map((item, i) => {
-      const storeIdx = storePositions.indexOf(i)
-      return storeIdx >= 0 ? values[storeIdx] : item
-    }),
+  return combine(
+    stores,
+    (values): QueryKey =>
+      key.map((item, i) => {
+        const storeIdx = storePositions.indexOf(i)
+        return storeIdx >= 0 ? values[storeIdx] : item
+      }),
   )
 }
 
@@ -97,9 +99,9 @@ function resolveFactoryOptions<
   name?: string
 }): Store<ResolvedOptions<TOptions>> {
   const { enabled, refetchInterval, name: _name, ...binding } = options
-  const $raw = (
-    is.store(binding.source) ? binding.source : combine(binding.source)
-  ).map(binding.query)
+  const $raw = is.store(binding.source)
+    ? binding.source.map(binding.query)
+    : combine(binding.source, binding.query)
   const $enabled = is.store(enabled)
     ? enabled
     : createStore(enabled, { skipVoid: false, serialize: 'ignore' })
