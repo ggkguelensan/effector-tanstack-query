@@ -178,7 +178,10 @@ export function resolveQueryDefinition<
   const { queryKey, enabled, name: _name, ...capturedOptions } = options
   const interval = capturedOptions.refetchInterval
   // The input contract permits only number/false/undefined stores here.
-  const $interval = is.store<unknown, number | false | undefined>(interval)
+  const $interval: Store<number | false | undefined> | undefined = is.store<
+    unknown,
+    number | false | undefined
+  >(interval)
     ? interval
     : undefined
   if ($interval) delete capturedOptions.refetchInterval
@@ -192,17 +195,20 @@ export function resolveQueryDefinition<
   }
   const $resolvedKey = resolveKey(queryKey)
   const $enabled = is.store(enabled) ? enabled : createStore(enabled ?? true)
-  const $options = combine({
-    queryKey: $resolvedKey,
-    enabled: $enabled,
-    refetchInterval:
-      $interval ?? createStore<number | false | undefined>(false),
-  }).map(({ queryKey, enabled, refetchInterval }) => ({
-    ...restOptions,
-    queryKey,
-    enabled,
-    ...($interval ? { refetchInterval } : {}),
-  }))
+  const $options = combine(
+    {
+      queryKey: $resolvedKey,
+      enabled: $enabled,
+      refetchInterval:
+        $interval ?? createStore<number | false | undefined>(false),
+    },
+    ({ queryKey, enabled, refetchInterval }) => ({
+      ...restOptions,
+      queryKey,
+      enabled,
+      ...($interval ? { refetchInterval } : {}),
+    }),
+  )
   return {
     $options,
     $resolvedKey,
