@@ -1,6 +1,7 @@
 import { expectTypeOf } from 'vitest'
 import { createStore } from 'effector'
 import type { Store } from 'effector'
+import type { InfiniteData } from '@tanstack/query-core'
 import {
   queryOptions,
   infiniteQueryOptions,
@@ -35,7 +36,10 @@ const selected = createQuery({
   source: $id,
   query: (id: number) => ({
     ...options(id),
-    select: (todo) => todo.title,
+    select: (todo) => {
+      expectTypeOf(todo).toEqualTypeOf<{ id: number; title: string }>()
+      return todo.title
+    },
     enabled: id > 0,
   }),
 })
@@ -51,9 +55,20 @@ const infinite = createInfiniteQuery({
     infiniteQueryOptions({
       queryKey: ['native-pages', id],
       initialPageParam: 0,
-      queryFn: ({ pageParam }) => ({ next: pageParam + 1 }),
-      getNextPageParam: (page) => page.next,
-      select: (data) => data.pages.map((page) => page.next),
+      queryFn: ({ pageParam }) => {
+        expectTypeOf(pageParam).toEqualTypeOf<number>()
+        return { next: pageParam + 1 }
+      },
+      getNextPageParam: (page) => {
+        expectTypeOf(page).toEqualTypeOf<{ next: number }>()
+        return page.next
+      },
+      select: (data) => {
+        expectTypeOf(data).toEqualTypeOf<
+          InfiniteData<{ next: number }, number>
+        >()
+        return data.pages.map((page) => page.next)
+      },
     }),
 })
 expectTypeOf(useInfiniteQuery(infinite).data).toEqualTypeOf<

@@ -13,7 +13,10 @@ const todoOptions = (id: number) =>
       expectTypeOf(queryKey[1].id).toEqualTypeOf<number>()
       return Promise.resolve({ id, title: 'Todo' })
     },
-    select: (todo) => todo.title,
+    select: (todo) => {
+      expectTypeOf(todo).toEqualTypeOf<Todo>()
+      return todo.title
+    },
   })
 const options = todoOptions(1)
 expectTypeOf(client.getQueryData(options.queryKey)).toEqualTypeOf<
@@ -48,8 +51,14 @@ const pages = infiniteQueryOptions({
     expectTypeOf(pageParam).toEqualTypeOf<number>()
     return Promise.resolve({ next: pageParam + 1 })
   },
-  getNextPageParam: (page) => page.next,
-  select: (data) => data.pages.map((page) => page.next),
+  getNextPageParam: (page) => {
+    expectTypeOf(page).toEqualTypeOf<{ next: number }>()
+    return page.next
+  },
+  select: (data) => {
+    expectTypeOf(data).toEqualTypeOf<InfiniteData<{ next: number }, number>>()
+    return data.pages.map((page) => page.next)
+  },
 })
 expectTypeOf(client.getQueryData(pages.queryKey)).toEqualTypeOf<
   InfiniteData<{ next: number }> | undefined
@@ -57,3 +66,9 @@ expectTypeOf(client.getQueryData(pages.queryKey)).toEqualTypeOf<
 expectTypeOf(client.fetchInfiniteQuery(pages)).toEqualTypeOf<
   Promise<InfiniteData<{ next: number }, number>>
 >()
+client.setQueryData(pages.queryKey, {
+  pages: [{ next: 1 }, { next: 2 }],
+  pageParams: [0, 1],
+})
+// @ts-expect-error selected values cannot be written to the raw infinite cache
+client.setQueryData(pages.queryKey, [1, 2])
