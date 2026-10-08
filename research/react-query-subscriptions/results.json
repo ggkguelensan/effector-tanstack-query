@@ -1,0 +1,117 @@
+{
+  "generatedBy": "node research/react-query-subscriptions/summarize.mjs; do not edit independently",
+  "effector": "23.4.4",
+  "effectorReact": "23.3.0",
+  "controls": "One client, one key, warmed cache, stable data reference on identical refetch, two controlled network requests, no parent rerenders",
+  "profiles": [
+    {
+      "name": "PR18",
+      "form": "factory",
+      "react": "19.2.5",
+      "query": "5.100.10",
+      "strictMode": "Same committed updates; render-function calls double for updates in development"
+    },
+    {
+      "name": "PR18",
+      "form": "inline",
+      "react": "19.2.5",
+      "query": "5.100.10",
+      "strictMode": "Same committed updates; render-function calls double for updates in development"
+    },
+    {
+      "name": "pre-PR master 08c41a7",
+      "form": "inline",
+      "react": "19.2.5",
+      "query": "5.100.10",
+      "strictMode": "Same committed updates; render-function calls double for updates in development"
+    },
+    {
+      "name": "Ticketon dependency profile",
+      "form": "factory",
+      "react": "18.3.1",
+      "query": "5.100.11",
+      "strictMode": "Same committed updates; render-function calls double for updates in development"
+    },
+    {
+      "name": "Ticketon dependency profile",
+      "form": "inline",
+      "react": "18.3.1",
+      "query": "5.100.11",
+      "strictMode": "Same committed updates; render-function calls double for updates in development"
+    }
+  ],
+  "committedUpdates": {
+    "sameData:start": {
+      "adapterData": 1,
+      "nativeData": 0,
+      "storeData": 0,
+      "storeDataError": 0,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 0,
+      "storeSelectedId": 0
+    },
+    "sameData:finish": {
+      "adapterData": 1,
+      "nativeData": 0,
+      "storeData": 0,
+      "storeDataError": 0,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 0,
+      "storeSelectedId": 0
+    },
+    "titleChanged": {
+      "adapterData": 1,
+      "nativeData": 1,
+      "storeData": 1,
+      "storeDataError": 1,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 0,
+      "storeSelectedId": 0
+    },
+    "idChanged": {
+      "adapterData": 1,
+      "nativeData": 1,
+      "storeData": 1,
+      "storeDataError": 1,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 1,
+      "storeSelectedId": 1
+    },
+    "error:start": {
+      "adapterData": 1,
+      "nativeData": 0,
+      "storeData": 0,
+      "storeDataError": 0,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 0,
+      "storeSelectedId": 0
+    },
+    "error:finish": {
+      "adapterData": 1,
+      "nativeData": 0,
+      "storeData": 0,
+      "storeDataError": 1,
+      "adapterFetching": 1,
+      "nativeFetching": 1,
+      "nativeAll": 1,
+      "nativeRest": 1,
+      "nativeSelectedId": 0,
+      "storeSelectedId": 0
+    }
+  }
+}
