@@ -36,3 +36,18 @@ export type {
   QueryResult,
   StoreOrValue,
 } from './types'
+
+export { queryOptions } from './queryOptions'
+export { infiniteQueryOptions } from './infiniteQueryOptions'
+
+export type { QueryOptionsWithDataTag } from './optionsCompat'
+export type {
+  DefinedInitialDataOptions,
+  UndefinedInitialDataOptions,
+  UnusedSkipTokenOptions,
+} from './queryOptions'
+export type {
+  DefinedInitialDataInfiniteOptions,
+  UndefinedInitialDataInfiniteOptions,
+  UnusedSkipTokenInfiniteOptions,
+} from './infiniteQueryOptions'
