@@ -18,7 +18,7 @@ export function createQuery<
   TError = DefaultError,
   TData = TQueryFnData,
   const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
+  TSource extends OptionsSource = OptionsSource,
 >(
   ...args: QueryArguments<
     CreateQueryFactoryOptions<TSource, TQueryFnData, TError, TData, TQueryKey>

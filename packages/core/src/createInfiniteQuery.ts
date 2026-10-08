@@ -36,7 +36,7 @@ export function createInfiniteQuery<
   TPageParam = unknown,
   TData = InfiniteData<TQueryFnData, TPageParam>,
   const TQueryKey extends QueryKey = QueryKey,
-  const TSource extends OptionsSource = OptionsSource,
+  TSource extends OptionsSource = OptionsSource,
 >(
   ...args: QueryArguments<
     CreateInfiniteQueryFactoryOptions<

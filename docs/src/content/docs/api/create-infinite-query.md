@@ -68,7 +68,8 @@ for a complete factory definition. Source changes update all options together,
 including page functions; the query key identifies the cached page set.
 
 The [source and override rules](/effector-tanstack-query/api/create-query/#factory-form)
-are shared with `createQuery`. Only `name`, `enabled` and `refetchInterval` are
+are shared with `createQuery`, including shallow store objects and arrays/tuples.
+Only `name`, `enabled` and `refetchInterval` are
 accepted at the top level. An explicit client can be passed first:
 `createInfiniteQuery(queryClient, { source, query })`.
 

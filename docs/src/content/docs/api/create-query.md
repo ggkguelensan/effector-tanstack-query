@@ -56,12 +56,51 @@ const todoQuery = createQuery({
 })
 ```
 
-`source` accepts a store or a shallow object of stores. `query` receives their
-plain values and must synchronously return query options with a `queryKey`.
-Use `combine` for nested or derived parameters. The factory runs when the model
-is created and when source values change; keep side effects inside `queryFn`.
+`source` accepts a store, a shallow object of stores, or an array/tuple of stores.
+`query` receives their plain values and must synchronously return query options
+with a `queryKey`. The factory runs when the model is created and when source
+values change; keep side effects inside `queryFn`.
 The complete options object updates together, including for prefetch and Suspense.
 A source change does not necessarily fetch: TanStack decides from the key and options.
+
+Array literals preserve per-position types:
+
+```ts
+const $ready = createStore(true)
+const tupleQuery = createQuery({
+  source: [$todoId, $ready],
+  query: ([todoId, ready]) => ({
+    ...todoOptions({ todoId }),
+    enabled: ready,
+  }),
+})
+```
+
+A mutable tuple resolves to a mutable value tuple; a readonly tuple or object
+preserves readonly in the callback type. A predeclared array remains an array,
+without an inferred fixed length. This does not freeze values at runtime.
+
+Shapes are shallow: every top-level entry must be a store. Plain values,
+nested shapes, events and effects are not accepted directly. Use an explicit
+`combine` for mixed, nested or derived parameters:
+
+```ts
+import { combine } from 'effector'
+
+const $parameters = combine({
+  todoId: $todoId,
+  filter: 'active',
+  context: combine({ ready: $ready }),
+})
+
+const combinedQuery = createQuery({
+  source: $parameters,
+  query: ({ todoId, filter, context }) => ({
+    ...todoOptions({ todoId }),
+    enabled: context.ready && filter === 'active',
+  }),
+})
+```
 
 `prefetch` reads the current scoped options and loads the QueryClient cache.
 To also initialize result stores for SSR, use

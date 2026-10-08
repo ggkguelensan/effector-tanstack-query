@@ -1,5 +1,5 @@
 import type { InfiniteOptions, NoInfer } from './optionsCompat'
-import type { Event, EventCallable, Store } from 'effector'
+import type { Event, EventCallable, GetCombinedValue, Store } from 'effector'
 import type {
   DefaultError,
   FetchStatus,
@@ -491,16 +491,17 @@ export type QueryArguments<TOptions> =
   | [options: TOptions]
   | [queryClient: QueryClient, options: TOptions]
 
-/** One store or a shallow shape of stores, as in sample/attach. */
+/** One store or a shallow object/array of stores; use combine for nested shapes. */
 export type OptionsSource =
   | Store<unknown>
   | Readonly<Record<string, Store<unknown>>>
+  // Infer array literals as tuples while rejecting undefined/non-store entries.
+  | (ReadonlyArray<Store<unknown>> &
+      readonly [Store<unknown>?, ...Store<unknown>[]])
 export type SourceValue<TSource extends OptionsSource> =
   TSource extends Store<infer V>
     ? V
-    : {
-        -readonly [P in keyof TSource]: TSource[P] extends Store<infer V> ? V : never
-      }
+    : GetCombinedValue<TSource>
 
 type FactoryOverrides<Interval> = {
   name?: string
