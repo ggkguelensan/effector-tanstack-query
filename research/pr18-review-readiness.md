@@ -32,8 +32,8 @@ Both current-head pull_request runs have conclusion `action_required` and no job
 
 The existing compat workflow is inherited from the base; it is not the separate query-core compatibility infrastructure Ilya asked to move out.
 
-## Proposed short comment — not posted
+## Review-ready comment — posted
 
-> @ilyaagarkov, PR18 is ready for review within the agreed scope. Factory forms, core helpers and scoped prefetch/Suspense are covered; inline behavior and dependency ranges are preserved. Local tests, types, builds, publish checks, docs and both examples pass. GitHub workflows are awaiting maintainer approval. Please look closely at inline option preservation and factory options before Suspense mount. Follow-ups remain separate.
+> @ilyaagarkov, PR18 is ready for review within the agreed scope. Local tests, types, builds, publish checks, docs and both examples pass. GitHub workflows are awaiting maintainer approval. Please look closely at inline option preservation and factory options before Suspense mount. Follow-ups remain separate.
 
-No review request or GitHub comment was sent by this check.
+The user authorized handoff on 2026-10-08. [The comment tagging Ilya was posted](https://github.com/ilyaagarkov/effector-tanstack-query/pull/18#issuecomment-6051854941). A formal reviewer request was attempted, but GitHub rejected RequestReviewsByLogin because ggkguelensan lacks repository permissions. The comment was successfully delivered; wait for maintainer CI approval and review.
