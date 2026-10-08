@@ -6,8 +6,8 @@ import {
   scopeBind,
   type Store,
 } from 'effector'
-import { QueryObserver, hashKey } from '@tanstack/query-core'
-import type { QueryClient } from '@tanstack/query-core'
+import { QueriesObserver, hashKey } from '@tanstack/query-core'
+import type { QueryClient, QueryObserverResult } from '@tanstack/query-core'
 import { $queryClient as $globalQueryClient } from './queryClient'
 import { sidConfig, warnMissingName } from './createBaseQuery'
 import type {
@@ -16,36 +16,11 @@ import type {
   QueryItemState,
 } from './types'
 
-interface ObserverEntry<TData, TError> {
-  observer: QueryObserver<TData, TError>
-  unsubscribe: (() => void) | null
-}
-
 const EMPTY_ITEMS: ReadonlyArray<QueryItemState<unknown, unknown, unknown>> = []
 
 /**
- * Reactive family of parallel queries indexed by a source store. See
- * {@link CreateQueriesOptions} for the input shape and
- * {@link QueriesResult} for the output API.
- *
- * Internals:
- *
- *   - Each `source` element gets one `QueryObserver` (deduplicated by
- *     `hashKey(query(item).queryKey)`). Observers live in a per-scope
- *     `Map` held in a `serialize: 'ignore'` store (instances can't ride
- *     through `serialize(scope)`).
- *   - On every `source` update the family diffs prev/next, spawns
- *     observers for new items, disposes observers for removed items,
- *     and updates `$items`. Re-ordering without add/remove is cheap —
- *     observers stay, `$items` just re-projects.
- *   - Observer subscriptions are reference-counted via `mounted()` /
- *     `unmounted()`. First mount subscribes every observer; last
- *     unmount unsubscribes. Subsequent source changes while mounted
- *     auto-subscribe new observers.
- *   - SSR works via `prefetch`: triggers `qc.fetchQuery(...)` for every
- *     current source item in parallel, populates the QC cache, then
- *     mounts observers so `$items` snapshot carries the data through
- *     `serialize(scope)`.
+ * Experimental QueriesObserver-backed family. See research/observer-runtime
+ * for duplicate-key behavior changes, type failures and dependency measurements.
  */
 export function createQueries<
   TItem,
@@ -96,270 +71,107 @@ export function createQueries<
       })
     : $globalQueryClient
 
-  // Per-scope observer storage. Map keyed by queryKey hash.
-  const $observers = createStore<Map<string, ObserverEntry<TData, TError>>>(
-    new Map(),
-    { serialize: 'ignore' },
-  )
-
-  // Per-scope ref-count: number of active consumers that called mounted().
-  // First mount subscribes observers, last unmount unsubscribes them.
-  const $refCount = createStore<number>(0, { serialize: 'ignore' })
-
-  // The serializable result snapshot.
-  const itemsUpdated = createEvent<
-    ReadonlyArray<QueryItemState<TItem, TData, TError>>
-  >()
-  const $items = createStore<
-    ReadonlyArray<QueryItemState<TItem, TData, TError>>
-  >(EMPTY_ITEMS as ReadonlyArray<QueryItemState<TItem, TData, TError>>, {
-    ...sidConfig(name, '$items'),
-  }).on(itemsUpdated, (_, items) => items)
-
-  const observersChanged = createEvent<
-    Map<string, ObserverEntry<TData, TError>>
-  >()
-  $observers.on(observersChanged, (_, next) => next)
-
+  const $observer = createStore<QueriesObserver | null>(null, {
+    serialize: 'ignore',
+  })
+  const observerChanged = createEvent<QueriesObserver>()
+  $observer.on(observerChanged, (_, observer) => observer)
+  const subscriptions = new WeakMap<QueriesObserver, () => void>()
+  const $refCount = createStore(0, { serialize: 'ignore' })
   const refCountChanged = createEvent<number>()
-  $refCount.on(refCountChanged, (_, next) => next)
-
+  $refCount.on(refCountChanged, (_, count) => count)
+  const itemsUpdated = createEvent<ReadonlyArray<QueryItemState<TItem, TData, TError>>>()
+  const $items = createStore<ReadonlyArray<QueryItemState<TItem, TData, TError>>>(
+    EMPTY_ITEMS as ReadonlyArray<QueryItemState<TItem, TData, TError>>,
+    { ...sidConfig(name, '$items') },
+  ).on(itemsUpdated, (_, items) => items)
   const mounted = createEvent<void>()
   const unmounted = createEvent<void>()
   const refresh = createEvent<void>()
   const refreshOne = createEvent<TItem>()
   const prefetch = createEvent<void>()
 
-  // Snapshot helpers — pure, run from effects.
-  function itemsFromObservers(
-    src: ReadonlyArray<TItem>,
-    observers: Map<string, ObserverEntry<TData, TError>>,
-  ): ReadonlyArray<QueryItemState<TItem, TData, TError>> {
-    return src.map((item) => {
-      const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
-      const entry = observers.get(hash)
-      if (!entry) return defaultItemState(item)
-      const r = entry.observer.getCurrentResult()
+  function buildObserverOptions(item: TItem) {
+    const itemOptions = query(item)
+    return { ...sharedOptions, ...itemOptions, enabled: itemOptions.enabled ?? true }
+  }
+  function itemsFromObserver(src: ReadonlyArray<TItem>, observer: QueriesObserver) {
+    // QueriesObserver does not preserve each observer's data/error generics.
+    const results = observer.getCurrentResult() as Array<QueryObserverResult<TData, TError>>
+    return src.map((item, index): QueryItemState<TItem, TData, TError> => {
+      const result = results[index]
+      if (!result) return defaultItemState(item)
       return {
-        source: item,
-        data: r.data,
-        error: r.error,
-        status: r.status,
-        isPending: r.isPending,
-        isFetching: r.isFetching,
-        isSuccess: r.isSuccess,
-        isError: r.isError,
-        isPlaceholderData: r.isPlaceholderData,
-        fetchStatus: r.fetchStatus,
+        source: item, data: result.data, error: result.error, status: result.status,
+        isPending: result.isPending, isFetching: result.isFetching,
+        isSuccess: result.isSuccess, isError: result.isError,
+        isPlaceholderData: result.isPlaceholderData, fetchStatus: result.fetchStatus,
       }
     })
   }
-
-  function buildObserverOptions(item: TItem) {
-    const itemOpts = query(item)
-    return {
-      ...sharedOptions,
-      ...itemOpts,
-      enabled: itemOpts.enabled ?? true,
-    } as ConstructorParameters<typeof QueryObserver<TQueryFnData, TError, TData>>[1]
-  }
-
-  // Diff source against current observers. Spawns / disposes observers
-  // to match the desired set; subscribes the ones that should be live
-  // given the current mount state. Idempotent — calling twice with the
-  // same input + state is a no-op.
-  function diffSource(
-    qc: QueryClient,
-    src: ReadonlyArray<TItem>,
-    prev: Map<string, ObserverEntry<TData, TError>>,
-    isMounted: boolean,
-    dispatchRecompute: () => void,
-  ): {
-    next: Map<string, ObserverEntry<TData, TError>>
-    items: ReadonlyArray<QueryItemState<TItem, TData, TError>>
-  } {
-    const next = new Map(prev)
-    const keep = new Set<string>()
-
-    for (const item of src) {
-      const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
-      keep.add(hash)
-      let entry = next.get(hash)
-      if (!entry) {
-        const obs = new QueryObserver<TQueryFnData, TError, TData>(
-          qc,
-          buildObserverOptions(item) as any,
-        )
-        entry = {
-          observer: obs as unknown as QueryObserver<TData, TError>,
-          unsubscribe: null,
-        }
-        next.set(hash, entry)
-      } else {
-        // Same queryKey but `query(item)` might have changed `enabled`
-        // (or other passthrough options). Keep observer options in sync.
-        entry.observer.setOptions({
-          ...entry.observer.options,
-          ...(buildObserverOptions(item) as any),
-        })
-      }
-      // Ensure subscription state matches mount state — covers both
-      // newly-spawned observers and pre-existing observers that were
-      // created while unmounted (`syncFx` ran on source change before
-      // anyone called `mounted()`).
-      if (isMounted && !entry.unsubscribe) {
-        entry.unsubscribe = entry.observer.subscribe(dispatchRecompute)
-      }
-    }
-
-    for (const [hash, entry] of next) {
-      if (!keep.has(hash)) {
-        entry.unsubscribe?.()
-        entry.observer.destroy()
-        next.delete(hash)
-      }
-    }
-
-    return { next, items: itemsFromObservers(src, next) }
-  }
-
-  // Triggered whenever an observer emits a result (subscribe callback)
-  // OR when source changes — re-projects $items.
   const recomputeFx = attach({
-    source: { observers: $observers, currentSource: source },
-    effect: ({ observers, currentSource }) => {
-      return itemsFromObservers(currentSource, observers)
-    },
+    source: { observer: $observer, currentSource: source },
+    effect: ({ observer, currentSource }) => observer
+      ? itemsFromObserver(currentSource, observer)
+      : currentSource.map(defaultItemState),
   })
   sample({ clock: recomputeFx.doneData, target: itemsUpdated })
-
-  // Source sync effect — applies diff, mutates observer subscriptions
-  // when mounted, then dispatches the items snapshot. When the scope
-  // has no QueryClient yet we still run, but the diff produces an
-  // empty observer set (no `new QueryObserver(qc, ...)` calls), so
-  // `$items` shows default-pending state and observers spawn the
-  // moment qc becomes available.
   const syncFx = attach({
-    source: {
-      qc: $queryClient,
-      observers: $observers,
-      refCount: $refCount,
-      currentSource: source,
-    },
-    effect: ({ qc, observers, refCount, currentSource }) => {
-      if (!qc) {
-        return {
-          next: observers,
-          items: currentSource.map(defaultItemState),
-        }
+    source: { qc: $queryClient, observer: $observer, refCount: $refCount, currentSource: source },
+    effect: ({ qc, observer: previous, refCount, currentSource }) => {
+      if (!qc) return { observer: previous, items: currentSource.map(defaultItemState) }
+      const observer = previous ?? new QueriesObserver(qc, [])
+      observer.setQueries(currentSource.map(buildObserverOptions))
+      if (refCount > 0 && !subscriptions.has(observer)) {
+        const recompute = scopeBind(recomputeFx, { safe: true })
+        subscriptions.set(observer, observer.subscribe(() => recompute()))
       }
-      const dispatchRecompute = scopeBind(recomputeFx, { safe: true })
-      return diffSource(
-        qc,
-        currentSource,
-        observers,
-        refCount > 0,
-        () => dispatchRecompute(),
-      )
+      return { observer, items: itemsFromObserver(currentSource, observer) }
     },
   })
-  sample({
-    clock: syncFx.doneData,
-    fn: (payload) => payload.next,
-    target: observersChanged,
-  })
-  sample({
-    clock: syncFx.doneData,
-    fn: (payload) => payload.items,
-    target: itemsUpdated,
-  })
-
+  sample({ clock: syncFx.doneData, filter: ({ observer }) => observer !== null,
+    fn: ({ observer }) => observer!, target: observerChanged })
+  sample({ clock: syncFx.doneData, fn: ({ items }) => items, target: itemsUpdated })
   sample({ clock: source, target: syncFx })
   sample({ clock: $queryClient, target: syncFx })
-
-  // Mount lifecycle — increment refCount, then run syncFx so observers
-  // get spawned (if missing) and subscribed (because `refCount > 0`
-  // now). Same path covers the first-ever mount AND
-  // existing-but-unsubscribed observers (created while unmounted, e.g.
-  // on a source-change in a not-yet-mounted scope).
-  const mountFx = attach({
-    source: $refCount,
-    effect: (refCount) => refCount + 1,
-  })
+  const mountFx = attach({ source: $refCount, effect: count => count + 1 })
   sample({ clock: mounted, target: mountFx })
   sample({ clock: mountFx.doneData, target: refCountChanged })
   sample({ clock: mountFx.done, target: syncFx })
-
   const unmountFx = attach({
-    source: { observers: $observers, refCount: $refCount },
-    effect: ({ observers, refCount }) => {
-      const nextRefCount = Math.max(0, refCount - 1)
-      if (nextRefCount === 0) {
-        for (const entry of observers.values()) {
-          entry.unsubscribe?.()
-          entry.unsubscribe = null
-        }
+    source: { observer: $observer, refCount: $refCount },
+    effect: ({ observer, refCount }) => {
+      const count = Math.max(0, refCount - 1)
+      if (count === 0 && observer) {
+        subscriptions.get(observer)?.()
+        subscriptions.delete(observer)
       }
-      return nextRefCount
+      return count
     },
   })
   sample({ clock: unmounted, target: unmountFx })
   sample({ clock: unmountFx.doneData, target: refCountChanged })
-
-  // Refresh — invalidate all observed queries; observer subscribers
-  // pick up the refetched data and refresh $items via recomputeFx.
-  const refreshFx = attach({
-    source: $observers,
-    effect: async (observers) => {
-      await Promise.all(
-        [...observers.values()].map((entry) =>
-          entry.observer.refetch().catch(() => undefined),
-        ),
-      )
-    },
-  })
+  const refreshFx = attach({ source: $observer, effect: async observer => {
+    await Promise.all(observer?.getObservers().map(entry => entry.refetch().catch(() => undefined)) ?? [])
+  } })
   sample({ clock: refresh, target: refreshFx })
-
-  const refreshOneFx = attach({
-    source: $observers,
-    effect: async (
-      observers,
-      item: TItem,
-    ) => {
-      const opts = query(item)
-      const hash = hashKey(opts.queryKey as ReadonlyArray<unknown>)
-      const entry = observers.get(hash)
-      if (!entry) return
-      await entry.observer.refetch().catch(() => undefined)
-    },
-  })
+  const refreshOneFx = attach({ source: $observer, effect: async (observer, item: TItem) => {
+    const hash = hashKey(query(item).queryKey)
+    const entry = observer?.getObservers().find(entry => hashKey(entry.options.queryKey) === hash)
+    await entry?.refetch().catch(() => undefined)
+  } })
   sample({ clock: refreshOne, target: refreshOneFx })
-
-  // Prefetch — for SSR. Walks source, calls qc.fetchQuery for each item
-  // in parallel, then re-runs syncFx so $items reflects the populated
-  // cache.
-  const prefetchFx = attach({
-    source: { qc: $queryClient, currentSource: source },
+  const prefetchFx = attach({ source: { qc: $queryClient, currentSource: source },
     effect: async ({ qc, currentSource }) => {
       if (!qc) return
-      await Promise.all(
-        currentSource.map((item) => {
-          const opts = query(item)
-          if (opts.enabled === false) return Promise.resolve()
-          return qc
-            .fetchQuery({
-              ...sharedOptions,
-              ...opts,
-            } as any)
-            .catch(() => undefined)
-        }),
-      )
+      await Promise.all(currentSource.map(item => {
+        const options = query(item)
+        if (options.enabled === false) return Promise.resolve()
+        return qc.fetchQuery({ ...sharedOptions, ...options }).catch(() => undefined)
+      }))
     },
   })
   sample({ clock: prefetch, target: prefetchFx })
-  // After prefetch resolves, re-sync to update $items from QC cache.
   sample({ clock: prefetchFx.done, target: syncFx })
 
   // Derived stores — convenience views.

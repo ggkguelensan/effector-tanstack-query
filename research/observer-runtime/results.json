@@ -1,0 +1,209 @@
+{
+  "baseline": "ca64fedd309a271de044ee41428b2c16a6bc1b9d",
+  "measurements": {
+    "baseline": {
+      "core": {
+        "minified": 15309,
+        "gzip": 4915
+      },
+      "all": {
+        "minified": 23924,
+        "gzip": 6855
+      },
+      "query": {
+        "minified": 5766,
+        "gzip": 2353
+      },
+      "infinite": {
+        "minified": 7225,
+        "gzip": 2726
+      },
+      "mutation": {
+        "minified": 2623,
+        "gzip": 1172
+      },
+      "family": {
+        "minified": 3778,
+        "gzip": 1567
+      },
+      "suspense": {
+        "minified": 13807,
+        "gzip": 4175
+      },
+      "familyWithQueryCore": {
+        "minified": 16724,
+        "gzip": 5810
+      },
+      "allWithQueryCore": {
+        "minified": 41553,
+        "gzip": 12205
+      }
+    },
+    "candidate": {
+      "core": {
+        "minified": 15012,
+        "gzip": 4793
+      },
+      "all": {
+        "minified": 23623,
+        "gzip": 6746
+      },
+      "query": {
+        "minified": 5766,
+        "gzip": 2353
+      },
+      "infinite": {
+        "minified": 7225,
+        "gzip": 2726
+      },
+      "mutation": {
+        "minified": 2623,
+        "gzip": 1172
+      },
+      "family": {
+        "minified": 3481,
+        "gzip": 1460
+      },
+      "suspense": {
+        "minified": 13807,
+        "gzip": 4175
+      },
+      "familyWithQueryCore": {
+        "minified": 19439,
+        "gzip": 6606
+      },
+      "allWithQueryCore": {
+        "minified": 44293,
+        "gzip": 13021
+      }
+    }
+  },
+  "behavior": {
+    "baseline": {
+      "duplicates": [
+        "B:10",
+        "B:10"
+      ],
+      "reordered": [
+        "A:10",
+        "A:10"
+      ],
+      "serialized": {
+        "@tanstack/query-effector.probe.family.$items": [
+          {
+            "source": {
+              "id": 1,
+              "label": "B"
+            },
+            "data": "A:10",
+            "error": null,
+            "status": "success",
+            "isPending": false,
+            "isFetching": false,
+            "isSuccess": true,
+            "isError": false,
+            "isPlaceholderData": false,
+            "fetchStatus": "idle"
+          },
+          {
+            "source": {
+              "id": 1,
+              "label": "A"
+            },
+            "data": "A:10",
+            "error": null,
+            "status": "success",
+            "isPending": false,
+            "isFetching": false,
+            "isSuccess": true,
+            "isError": false,
+            "isPlaceholderData": false,
+            "fetchStatus": "idle"
+          }
+        ]
+      }
+    },
+    "candidate": {
+      "duplicates": [
+        "A:10",
+        "B:10"
+      ],
+      "reordered": [
+        "B:10",
+        "A:10"
+      ],
+      "serialized": {
+        "@tanstack/query-effector.probe.family.$items": [
+          {
+            "source": {
+              "id": 1,
+              "label": "B"
+            },
+            "data": "B:10",
+            "error": null,
+            "status": "success",
+            "isPending": false,
+            "isFetching": false,
+            "isSuccess": true,
+            "isError": false,
+            "isPlaceholderData": false,
+            "fetchStatus": "idle"
+          },
+          {
+            "source": {
+              "id": 1,
+              "label": "A"
+            },
+            "data": "A:10",
+            "error": null,
+            "status": "success",
+            "isPending": false,
+            "isFetching": false,
+            "isSuccess": true,
+            "isError": false,
+            "isPlaceholderData": false,
+            "fetchStatus": "idle"
+          }
+        ]
+      }
+    }
+  },
+  "deltas": {
+    "core": {
+      "minified": -297,
+      "gzip": -122
+    },
+    "all": {
+      "minified": -301,
+      "gzip": -109
+    },
+    "query": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "infinite": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "mutation": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "family": {
+      "minified": -297,
+      "gzip": -107
+    },
+    "suspense": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "familyWithQueryCore": {
+      "minified": 2715,
+      "gzip": 796
+    },
+    "allWithQueryCore": {
+      "minified": 2740,
+      "gzip": 816
+    }
+  }
+}
