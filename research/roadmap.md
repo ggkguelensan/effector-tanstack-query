@@ -13,7 +13,7 @@ Current PR18 readiness is recorded in [the review-readiness report](./pr18-revie
 ## Order
 
 1. Finish PR18 within Ilya's agreed scope. Complete final verification, assess readiness, prepare a short review-ready comment. Do not mix the work below into it.
-2. Prepare the unused-result-field subscription issue. Use the minimal identical-background-refetch reproduction, committed-render comparison and selective useUnit control. Review the text with the user before publication; do not prescribe Proxy tracking as the only fix.
+2. [Subscription issue #27](https://github.com/ilyaagarkov/effector-tanstack-query/issues/27) is published at the user's request. It includes the minimal identical-background-refetch reproduction, committed-render comparison and selective useUnit control. Discuss the solution after PR18; Proxy tracking is not prescribed as the only fix.
 3. Experiment with passive observation. Native hook/loader fetches; Effector observes cache updates. Start with existing enabled:false before inventing an API. Check cache writes, invalidation, parameter changes, error/data projections, scopes, cleanup and SSR/client ownership. Decide whether the result needs documentation or an API issue.
 4. Validate one Ticketon vertical slice: an existing options factory, one shared QueryClient, native React consumption and one Effector business reaction. Preserve explicit parameter ownership. Assess existing Gate composition before adding createQueryGate; a shared Gate does not provide independent props for several owners.
 5. Investigate awaited mutation execution and factory reuse. Current mutate is fire-and-forget and allSettled does not await its network completion. Coordinate any proposal with #21/#22 and check concurrent calls, lifecycle and callback behavior.
@@ -22,7 +22,7 @@ Existing follow-ups #21–#26 remain deferred until PR18 is merged and are consi
 
 ## Retained experiments
 
-- [Selective React subscriptions](https://github.com/ggkguelensan/effector-tanstack-query/tree/experiment/react-query-subscriptions/research/react-query-subscriptions): confirmed existing adapter limitation, also present before PR18. No issue has been published yet.
+- [Selective React subscriptions](https://github.com/ggkguelensan/effector-tanstack-query/tree/experiment/react-query-subscriptions/research/react-query-subscriptions): confirmed existing adapter limitation, also present before PR18. The findings are published in [issue #27](https://github.com/ilyaagarkov/effector-tanstack-query/issues/27).
 - [One scoped observer-result event](https://github.com/ggkguelensan/effector-tanstack-query/tree/experiment/observer-result-bridge/research/observer-runtime): explicitly retain for later. Reduces boilerplate/bundle, but changes per-field event ordering into coherent snapshot transactions. Public stores/SIDs are preserved; acceptance of that semantic change must be explicit.
 - [QueriesObserver](https://github.com/ggkguelensan/effector-tanstack-query/tree/experiment/queries-observer/research/observer-runtime): rejected as a size optimization; transitive Query Core footprint grows, duplicate-key semantics change and type checking fails.
 - [Combined React useUnit shape](https://github.com/ggkguelensan/effector-tanstack-query/tree/experiment/react-unit-shapes/research/observer-runtime): fewer hook calls, no bundle reduction. Runtime speedup was not measured.

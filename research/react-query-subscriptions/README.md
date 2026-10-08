@@ -2,7 +2,7 @@
 
 The adapter's ordinary `useQuery` subscribes to all nine result stores through `useUnit`. Reading only `data` from its return value does not narrow those subscriptions. Native React Query filters observer notifications by tracked result properties; explicit `useUnit`/`useStoreMap` subscriptions can be selective too.
 
-No implementation changes are included. This is evidence for a separate issue, not an extension of PR18 or a proposed fix.
+No implementation changes are included. The findings are published in [issue #27](https://github.com/ilyaagarkov/effector-tanstack-query/issues/27), separately from PR18 and without prescribing a fix.
 
 ## Results
 
