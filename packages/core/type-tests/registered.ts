@@ -57,8 +57,9 @@ queryOptions({ queryKey: ['wrong'], queryFn: () => 1 })
 // @ts-expect-error registered metadata requires audit
 queryOptions({ queryKey: ['app'], meta: {}, queryFn: () => 1 })
 
-// The legacy key alias remains independent of Query Core's Register, exactly
-// as before this PR. Only the new factory/helper contract follows Register.
+// Legacy inline queries retain their Error default and EffectorQueryKey.
+// Factory/helper key and error defaults follow Query Core's Register.
+// Registered queryMeta applies to both forms.
 const legacyKey: import('../.type-tests-dist/index').EffectorQueryKey = [
   'legacy',
   $id,

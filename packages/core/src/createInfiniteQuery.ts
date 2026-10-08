@@ -246,8 +246,8 @@ export function createInfiniteQuery<
     },
   )
 
-  // See createQuery.prefetch — same contract, but uses fetchInfiniteQuery so
-  // the first page is fetched + cached on the server.
+  // Prefetch uses current scoped options, including the initial page parameter
+  // and page callbacks, to load the cache without mounting an observer.
   const prefetch = createEvent<void>()
   const prefetchFx = attach({
     source: {

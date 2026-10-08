@@ -757,8 +757,8 @@ function useSuspenseObserver<
   const qc = useUnit(query.$queryClient)
   const options = useUnit(factory.__options)
 
-  // Before mount, both forms expose their current scoped options. Core owns
-  // the option policy; React only needs a usable observer for this render.
+  // Effects cannot update a transient while rendering is suspended.
+  // Recreate it from the current scoped options when that snapshot changes.
   const transient = React.useMemo(() => {
     if (observerInScope || !qc) return null
     return factory.__createObserver(qc, options)
@@ -828,13 +828,12 @@ function useSuspenseQueriesTuple<T extends UseSuspenseQueriesTuple>(
   const isPlaceholderDatas = useUnit(queries.map((q) => q.$isPlaceholderData))
   const fetchStatuses = useUnit(queries.map((q) => q.$fetchStatus))
 
-  // Observer / qc / key info per query — same fixed-count pattern.
   const observersInScope = useUnit(queries.map((q) => q.$observer))
   const qcs = useUnit(queries.map((q) => q.$queryClient))
   const resolvedOptions = useUnit(
     queries.map((q) => (q as unknown as SuspenseFactory<unknown>).__options),
   )
-  // One hook for the tuple; each transient uses its model's scoped options.
+  // Keep hook count fixed; each transient uses its model's scoped options.
   const transients = React.useMemo(() => {
     return queries.map((q, i) => {
       if (observersInScope[i]) return null

@@ -205,8 +205,6 @@ describe('createInfiniteQuery (core)', () => {
       Promise.resolve({ items: [`p${pageParam}`], next: null }),
     )
     // Single-arg form — no explicit qc, falls back to global $queryClient.
-    // This exercises the `parseInfiniteArgs` null-client branch as a side
-    // benefit.
     const query = createInfiniteQuery<
       { items: Array<string>; next: number | null },
       Error,

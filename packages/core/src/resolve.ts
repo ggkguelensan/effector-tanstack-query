@@ -44,9 +44,9 @@ export function resolveKey(key: EffectorQueryKey): Store<QueryKey> {
   )
 }
 
-/** Complete options at the adapter seam; runtime instances are never serialized. */
 type AnyQueryObserverOptions = QueryObserverOptions<any, any, any, any, any>
 
+/** Scoped native options with a resolved key and boolean enabled. */
 export type ResolvedOptions<
   TOptions extends AnyQueryObserverOptions = AnyQueryObserverOptions,
 > = Omit<
@@ -153,7 +153,7 @@ type PrefetchOptions<TOptions extends AnyQueryObserverOptions> =
   | Omit<ResolvedOptions<TOptions>, 'enabled'>
   | (InlineNativeOptions<TOptions> & { queryKey: QueryKey })
 
-/** Execution policies differ intentionally: inline retains its pre-factory contract. */
+/** Inline updates retain observer options; factory updates use the new snapshot. */
 export function resolveQueryDefinition<
   TOptions extends AnyQueryObserverOptions,
 >(
@@ -175,11 +175,8 @@ export function resolveQueryDefinition<
     }
   }
 
-  // Preserve inline's original constructor, setOptions and prefetch behavior,
-  // including resolved defaults, custom hashes and notification filters.
   const { queryKey, enabled, name: _name, ...capturedOptions } = options
   const interval = capturedOptions.refetchInterval
-  // The input contract permits only number/false/undefined stores here.
   const $interval: Store<number | false | undefined> | undefined = is.store<
     unknown,
     number | false | undefined

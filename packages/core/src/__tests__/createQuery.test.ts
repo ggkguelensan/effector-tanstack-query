@@ -8,8 +8,6 @@ import { createQuery } from '../createQuery'
 
 // Testing strategy:
 // - fork() creates an isolated scope: store state changes don't bleed between tests
-// - allSettled(event, { scope }) fires the event in scope and waits for ALL effects
-//   (including setupSubscriptionFx triggered via sample) to settle
 // - vi.advanceTimersByTimeAsync resolves async queryFn promises (sleep-based)
 // - Store updates in tests use events (.on) because allSettled(event) reliably
 //   triggers the reactive graph; direct store allSettled may not propagate derived stores

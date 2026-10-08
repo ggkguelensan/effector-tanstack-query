@@ -71,12 +71,9 @@ export function createQuery<
     },
   )
 
-  // Prefetch event: drives `queryClient.fetchQuery` directly (no Observer)
-  // and **awaits** the result, so `allSettled(query.prefetch, { scope })` on
-  // the server returns only after the cache has the data. Unlike `mounted`,
-  // which kicks off a background subscription and resolves immediately, this
-  // is the right primitive for SSR / route loaders. The current resolved key
-  // + enabled is read from the scope via attach — reactive keys work.
+  // Prefetch awaits cache loading without mounting an observer. Read the full
+  // options snapshot through attach so factory closures use the current scope.
+  // Unmounted result stores are initialized separately through mounted().
   const prefetch = createEvent<void>()
   const prefetchFx = attach({
     source: {

@@ -63,6 +63,12 @@ is created and when source values change; keep side effects inside `queryFn`.
 The complete options object updates together, including for prefetch and Suspense.
 A source change does not necessarily fetch: TanStack decides from the key and options.
 
+`prefetch` reads the current scoped options and loads the QueryClient cache.
+To also initialize result stores for SSR, use
+[`prefetchQueries`](/effector-tanstack-query/api/prefetch-queries/), which then
+mounts the queries. Completion does not guarantee that every query loaded
+successfully; disabled queries can be skipped and requests can fail.
+
 Only `name`, `enabled` and `refetchInterval` are allowed alongside `source` and
 `query`. `enabled` accepts a boolean or boolean store; `refetchInterval` accepts
 the native value/callback or a `Store<number | false | undefined>`. A defined
@@ -86,7 +92,7 @@ Factories can return plain options or use compatible native helpers, such as
 [`queryOptions`](/effector-tanstack-query/api/query-options/) is optional.
 Factory observers use `notifyOnChangeProps: 'all'` so model stores stay current.
 `createQuery(queryClient, { source, query })` binds an explicit client.
-If an options object also contains `queryKey`, the existing inline form takes precedence.
+If an options object has a defined top-level `queryKey`, the existing inline form takes precedence.
 
 See [reusing factories](/effector-tanstack-query/guides/queries/#reusing-query-options-factories)
 for sharing one definition across consumers.

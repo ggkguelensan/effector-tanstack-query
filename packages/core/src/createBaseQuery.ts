@@ -251,12 +251,9 @@ export function createBaseQuery<
   const extras = config.setupExtras?.()
   extras?.setupEffects?.({ $observer })
 
-  // Runs once per mount. Creates the observer for the current scope (if not
-  // yet created) and attaches the subscription. scopeBind({ safe: true })
-  // reliably captures the fork scope here because this effect is triggered
-  // directly from allSettled(mounted). Bound dispatchers are captured in the
-  // observer callback's closure and reused for all subsequent notifications
-  // (including after key/enabled changes).
+  // The first owner creates the scoped subscription. Bind dispatchers here
+  // so later observer callbacks update the same scope, including after
+  // factory options change.
   const mountFx = attach({
     source: { qc: $effectiveClient, observer: $observer },
     effect: ({ qc, observer: existingObserver }, currentOptions: TOptions) => {
@@ -307,7 +304,6 @@ export function createBaseQuery<
         dispatchExtras?.(result)
 
         if (lastDataUpdatedAt === -1) {
-          // Baseline — record current timestamps without emitting.
           lastDataUpdatedAt = result.dataUpdatedAt
           lastErrorUpdatedAt = result.errorUpdatedAt
         } else {
@@ -346,9 +342,8 @@ export function createBaseQuery<
 
   sample({ clock: mountFx.doneData, target: observerCreated })
 
-  // Runs when key / enabled / reactive refetchInterval change after mount.
-  // Only updates observer options — subscription + dispatchers were already
-  // wired in mountFx.
+  // Factory source changes can replace callbacks without changing the key.
+  // Apply the scoped options snapshot while retaining the existing subscription.
   const updateObserverFx = attach({
     source: $observer,
     effect: (observer, currentOptions: TOptions) => {
