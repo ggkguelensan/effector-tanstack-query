@@ -1,0 +1,213 @@
+{
+  "baseline": "ca64fedd309a271de044ee41428b2c16a6bc1b9d",
+  "measurements": {
+    "baseline": {
+      "core": {
+        "minified": 15309,
+        "gzip": 4915
+      },
+      "all": {
+        "minified": 23924,
+        "gzip": 6855
+      },
+      "query": {
+        "minified": 5766,
+        "gzip": 2353
+      },
+      "infinite": {
+        "minified": 7225,
+        "gzip": 2726
+      },
+      "mutation": {
+        "minified": 2623,
+        "gzip": 1172
+      },
+      "family": {
+        "minified": 3778,
+        "gzip": 1567
+      },
+      "suspense": {
+        "minified": 13807,
+        "gzip": 4175
+      },
+      "familyWithQueryCore": {
+        "minified": 16724,
+        "gzip": 5810
+      },
+      "allWithQueryCore": {
+        "minified": 41553,
+        "gzip": 12205
+      }
+    },
+    "candidate": {
+      "core": {
+        "minified": 14755,
+        "gzip": 4672
+      },
+      "all": {
+        "minified": 23368,
+        "gzip": 6591
+      },
+      "query": {
+        "minified": 5575,
+        "gzip": 2269
+      },
+      "infinite": {
+        "minified": 6806,
+        "gzip": 2541
+      },
+      "mutation": {
+        "minified": 2495,
+        "gzip": 1118
+      },
+      "family": {
+        "minified": 3778,
+        "gzip": 1568
+      },
+      "suspense": {
+        "minified": 13382,
+        "gzip": 3980
+      },
+      "familyWithQueryCore": {
+        "minified": 16724,
+        "gzip": 5810
+      },
+      "allWithQueryCore": {
+        "minified": 40979,
+        "gzip": 11961
+      }
+    }
+  },
+  "behavior": {
+    "baseline": {
+      "trace": [
+        {
+          "kind": "query",
+          "data": 3,
+          "status": "pending"
+        },
+        {
+          "kind": "infinite",
+          "data": {
+            "pages": [
+              1
+            ],
+            "pageParams": [
+              0
+            ]
+          },
+          "hasNextPage": false
+        },
+        {
+          "kind": "mutation",
+          "data": 3,
+          "status": "pending"
+        }
+      ],
+      "serialized": {
+        "@tanstack/query-effector.probe.query.$isFetching": false,
+        "@tanstack/query-effector.probe.query.$fetchStatus": "idle",
+        "@tanstack/query-effector.probe.query.$data": 3,
+        "@tanstack/query-effector.probe.query.$status": "success",
+        "@tanstack/query-effector.probe.pages.$isFetching": false,
+        "@tanstack/query-effector.probe.pages.$fetchStatus": "idle",
+        "@tanstack/query-effector.probe.pages.$data": {
+          "pages": [
+            1
+          ],
+          "pageParams": [
+            0
+          ]
+        },
+        "@tanstack/query-effector.probe.pages.$status": "success",
+        "@tanstack/query-effector.probe.pages.$hasNextPage": true,
+        "@tanstack/query-effector.probe.mutation.$status": "success",
+        "@tanstack/query-effector.probe.mutation.$data": 3
+      }
+    },
+    "candidate": {
+      "trace": [
+        {
+          "kind": "query",
+          "data": 3,
+          "status": "success"
+        },
+        {
+          "kind": "infinite",
+          "data": {
+            "pages": [
+              1
+            ],
+            "pageParams": [
+              0
+            ]
+          },
+          "hasNextPage": true
+        },
+        {
+          "kind": "mutation",
+          "data": 3,
+          "status": "success"
+        }
+      ],
+      "serialized": {
+        "@tanstack/query-effector.probe.query.$isFetching": false,
+        "@tanstack/query-effector.probe.query.$fetchStatus": "idle",
+        "@tanstack/query-effector.probe.query.$data": 3,
+        "@tanstack/query-effector.probe.query.$status": "success",
+        "@tanstack/query-effector.probe.pages.$isFetching": false,
+        "@tanstack/query-effector.probe.pages.$fetchStatus": "idle",
+        "@tanstack/query-effector.probe.pages.$data": {
+          "pages": [
+            1
+          ],
+          "pageParams": [
+            0
+          ]
+        },
+        "@tanstack/query-effector.probe.pages.$status": "success",
+        "@tanstack/query-effector.probe.pages.$hasNextPage": true,
+        "@tanstack/query-effector.probe.mutation.$status": "success",
+        "@tanstack/query-effector.probe.mutation.$data": 3
+      }
+    }
+  },
+  "deltas": {
+    "core": {
+      "minified": -554,
+      "gzip": -243
+    },
+    "all": {
+      "minified": -556,
+      "gzip": -264
+    },
+    "query": {
+      "minified": -191,
+      "gzip": -84
+    },
+    "infinite": {
+      "minified": -419,
+      "gzip": -185
+    },
+    "mutation": {
+      "minified": -128,
+      "gzip": -54
+    },
+    "family": {
+      "minified": 0,
+      "gzip": 1
+    },
+    "suspense": {
+      "minified": -425,
+      "gzip": -195
+    },
+    "familyWithQueryCore": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "allWithQueryCore": {
+      "minified": -574,
+      "gzip": -244
+    }
+  }
+}

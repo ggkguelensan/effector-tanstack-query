@@ -126,16 +126,9 @@ export function sidConfig(
   }
 }
 
-export interface ExtrasSetup<TResult, TObserver, TExtraStores> {
+export interface ExtrasSetup<TObserver, TExtraStores> {
   /** Extra stores/events merged into the final result object. */
   stores: TExtraStores
-  /**
-   * Invoked inside the mount effect. Must scope-bind any extra events
-   * and return a function that dispatches extra fields from the observer
-   * result. The returned dispatcher is called on every subscription
-   * notification alongside the base dispatcher.
-   */
-  bindDispatcher: () => (result: TResult) => void
   /**
    * Lets a flavor wire its own per-observer effects (e.g.
    * fetchNextPage / fetchPreviousPage for infinite queries). Receives the
@@ -161,7 +154,7 @@ export interface CreateBaseQueryConfig<
    * Hook for query flavors that need additional stores/events (e.g. infinite
    * query's hasNextPage, fetchNextPage). Called once at factory time.
    */
-  setupExtras?: () => ExtrasSetup<TResult, TObserver, TExtraStores>
+  setupExtras?: (resultUpdated: Event<TResult>) => ExtrasSetup<TObserver, TExtraStores>
 }
 
 export function createBaseQuery<
@@ -196,12 +189,7 @@ export function createBaseQuery<
       })
     : $queryClient
 
-  const dataUpdated = createEvent<TData | undefined>()
-  const errorUpdated = createEvent<TError | null>()
-  const statusUpdated = createEvent<QueryStatus>()
-  const isFetchingUpdated = createEvent<boolean>()
-  const fetchStatusUpdated = createEvent<FetchStatus>()
-  const isPlaceholderDataUpdated = createEvent<boolean>()
+  const resultUpdated = createEvent<TResult>()
 
   // Lifecycle events. Created once at factory time; dispatched per-scope via
   // scopeBind inside the mount effect so `allSettled` / fork isolation work.
@@ -211,23 +199,23 @@ export function createBaseQuery<
   const $data = createStore<TData | undefined>(undefined, {
     skipVoid: false,
     ...sidConfig(name, '$data'),
-  }).on(dataUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.data)
   const $error = createStore<TError | null>(null, {
     skipVoid: false,
     ...sidConfig(name, '$error'),
-  }).on(errorUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.error)
   const $status = createStore<QueryStatus>('pending', {
     ...sidConfig(name, '$status'),
-  }).on(statusUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.status)
   const $isFetching = createStore(false, {
     ...sidConfig(name, '$isFetching'),
-  }).on(isFetchingUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.isFetching)
   const $fetchStatus = createStore<FetchStatus>('idle', {
     ...sidConfig(name, '$fetchStatus'),
-  }).on(fetchStatusUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.fetchStatus)
   const $isPlaceholderData = createStore(false, {
     ...sidConfig(name, '$isPlaceholderData'),
-  }).on(isPlaceholderDataUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.isPlaceholderData)
 
   // Derived stores via .map don't accept sid in their config — effector's
   // serialize() captures source-store values, and derived stores recompute
@@ -248,7 +236,7 @@ export function createBaseQuery<
   // a scope that was discarded without unmount) are GC'able.
   const observerSubscriptions = new WeakMap<TObserver, () => void>()
 
-  const extras = config.setupExtras?.()
+  const extras = config.setupExtras?.(resultUpdated)
   extras?.setupEffects?.({ $observer })
 
   // The first owner creates the scoped subscription. Bind dispatchers here
@@ -268,17 +256,9 @@ export function createBaseQuery<
         existingObserver ??
         config.createObserver(qc, definition.create(currentOptions))
 
-      const dispatchData = scopeBind(dataUpdated, { safe: true })
-      const dispatchError = scopeBind(errorUpdated, { safe: true })
-      const dispatchStatus = scopeBind(statusUpdated, { safe: true })
-      const dispatchIsFetching = scopeBind(isFetchingUpdated, { safe: true })
-      const dispatchFetchStatus = scopeBind(fetchStatusUpdated, { safe: true })
-      const dispatchIsPlaceholderData = scopeBind(isPlaceholderDataUpdated, {
-        safe: true,
-      })
+      const dispatchResult = scopeBind(resultUpdated, { safe: true })
       const dispatchFinishedSuccess = scopeBind(finishedSuccess, { safe: true })
       const dispatchFinishedFailure = scopeBind(finishedFailure, { safe: true })
-      const dispatchExtras = extras?.bindDispatcher()
 
       // Per-mount, per-scope baseline for lifecycle events. The first
       // notification (the immediate getCurrentResult() emit below, or the
@@ -295,13 +275,7 @@ export function createBaseQuery<
       )
 
       const dispatch = (result: TResult) => {
-        dispatchData(result.data)
-        dispatchError(result.error)
-        dispatchStatus(result.status)
-        dispatchIsFetching(result.isFetching)
-        dispatchFetchStatus(result.fetchStatus)
-        dispatchIsPlaceholderData(result.isPlaceholderData)
-        dispatchExtras?.(result)
+        dispatchResult(result)
 
         if (lastDataUpdatedAt === -1) {
           lastDataUpdatedAt = result.dataUpdatedAt

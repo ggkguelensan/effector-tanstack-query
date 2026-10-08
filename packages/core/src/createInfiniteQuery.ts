@@ -1,4 +1,4 @@
-import { attach, createEvent, createStore, sample, scopeBind } from 'effector'
+import { attach, createEvent, createStore, sample } from 'effector'
 import { InfiniteQueryObserver } from '@tanstack/query-core'
 import type {
   DefaultError,
@@ -146,32 +146,25 @@ export function createInfiniteQuery<
           QueryKey,
           TPageParam
         >(qc, options as any),
-      setupExtras: () => {
-        const hasNextPageUpdated = createEvent<boolean>()
-        const hasPreviousPageUpdated = createEvent<boolean>()
-        const isFetchingNextPageUpdated = createEvent<boolean>()
-        const isFetchingPreviousPageUpdated = createEvent<boolean>()
-        const isFetchNextPageErrorUpdated = createEvent<boolean>()
-        const isFetchPreviousPageErrorUpdated = createEvent<boolean>()
-
+      setupExtras: (resultUpdated) => {
         const $hasNextPage = createStore(false, {
           ...sidConfig(name, '$hasNextPage'),
-        }).on(hasNextPageUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.hasNextPage)
         const $hasPreviousPage = createStore(false, {
           ...sidConfig(name, '$hasPreviousPage'),
-        }).on(hasPreviousPageUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.hasPreviousPage)
         const $isFetchingNextPage = createStore(false, {
           ...sidConfig(name, '$isFetchingNextPage'),
-        }).on(isFetchingNextPageUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.isFetchingNextPage)
         const $isFetchingPreviousPage = createStore(false, {
           ...sidConfig(name, '$isFetchingPreviousPage'),
-        }).on(isFetchingPreviousPageUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.isFetchingPreviousPage)
         const $isFetchNextPageError = createStore(false, {
           ...sidConfig(name, '$isFetchNextPageError'),
-        }).on(isFetchNextPageErrorUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.isFetchNextPageError)
         const $isFetchPreviousPageError = createStore(false, {
           ...sidConfig(name, '$isFetchPreviousPageError'),
-        }).on(isFetchPreviousPageErrorUpdated, (_, v) => v)
+        }).on(resultUpdated, (_, result) => result.isFetchPreviousPageError)
 
         const fetchNextPage = createEvent<void>()
         const fetchPreviousPage = createEvent<void>()
@@ -208,39 +201,7 @@ export function createInfiniteQuery<
             })
             sample({ clock: fetchPreviousPage, target: fetchPreviousPageFx })
           },
-          bindDispatcher: () => {
-            const dispatchHasNextPage = scopeBind(hasNextPageUpdated, {
-              safe: true,
-            })
-            const dispatchHasPreviousPage = scopeBind(hasPreviousPageUpdated, {
-              safe: true,
-            })
-            const dispatchIsFetchingNextPage = scopeBind(
-              isFetchingNextPageUpdated,
-              { safe: true },
-            )
-            const dispatchIsFetchingPreviousPage = scopeBind(
-              isFetchingPreviousPageUpdated,
-              { safe: true },
-            )
-            const dispatchIsFetchNextPageError = scopeBind(
-              isFetchNextPageErrorUpdated,
-              { safe: true },
-            )
-            const dispatchIsFetchPreviousPageError = scopeBind(
-              isFetchPreviousPageErrorUpdated,
-              { safe: true },
-            )
 
-            return (result) => {
-              dispatchHasNextPage(result.hasNextPage)
-              dispatchHasPreviousPage(result.hasPreviousPage)
-              dispatchIsFetchingNextPage(result.isFetchingNextPage)
-              dispatchIsFetchingPreviousPage(result.isFetchingPreviousPage)
-              dispatchIsFetchNextPageError(result.isFetchNextPageError)
-              dispatchIsFetchPreviousPageError(result.isFetchPreviousPageError)
-            }
-          },
         }
       },
     },

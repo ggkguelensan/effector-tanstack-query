@@ -42,32 +42,29 @@ export function createMutation<
       })
     : $queryClient
 
-  const dataUpdated = createEvent<TData | undefined>()
-  const errorUpdated = createEvent<TError | null>()
-  const statusUpdated = createEvent<MutationStatus>()
-  const variablesUpdated = createEvent<TVariables | undefined>()
-  const isPausedUpdated = createEvent<boolean>()
+  type Observer = MutationObserver<TData, TError, TVariables, TOnMutateResult>
+  const resultUpdated = createEvent<ReturnType<Observer['getCurrentResult']>>()
   const finishedSuccess = createEvent<{ params: TVariables; result: TData }>()
   const finishedFailure = createEvent<{ params: TVariables; error: TError }>()
 
   const $data = createStore<TData | undefined>(undefined, {
     skipVoid: false,
     ...sidConfig(name, '$data'),
-  }).on(dataUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.data)
   const $error = createStore<TError | null>(null, {
     skipVoid: false,
     ...sidConfig(name, '$error'),
-  }).on(errorUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.error)
   const $status = createStore<MutationStatus>('idle', {
     ...sidConfig(name, '$status'),
-  }).on(statusUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.status)
   const $variables = createStore<TVariables | undefined>(undefined, {
     skipVoid: false,
     ...sidConfig(name, '$variables'),
-  }).on(variablesUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.variables)
   const $isPaused = createStore(false, {
     ...sidConfig(name, '$isPaused'),
-  }).on(isPausedUpdated, (_, v) => v)
+  }).on(resultUpdated, (_, result) => result.isPaused)
 
   // Derived stores via .map don't take sid — they recompute from $status on
   // the client after fork({ values }).
@@ -78,7 +75,6 @@ export function createMutation<
 
   // Per-scope observer — same pattern as createBaseQuery. Each fork scope
   // gets its own MutationObserver bound to its scope's QueryClient.
-  type Observer = MutationObserver<TData, TError, TVariables, TOnMutateResult>
   const $observer = createStore<Observer | null>(null, {
     serialize: 'ignore',
   })
@@ -107,11 +103,7 @@ export function createMutation<
           observerOptions,
         )
 
-      const dispatchData = scopeBind(dataUpdated, { safe: true })
-      const dispatchError = scopeBind(errorUpdated, { safe: true })
-      const dispatchStatus = scopeBind(statusUpdated, { safe: true })
-      const dispatchVariables = scopeBind(variablesUpdated, { safe: true })
-      const dispatchIsPaused = scopeBind(isPausedUpdated, { safe: true })
+      const dispatchResult = scopeBind(resultUpdated, { safe: true })
       const dispatchFinishedSuccess = scopeBind(finishedSuccess, { safe: true })
       const dispatchFinishedFailure = scopeBind(finishedFailure, { safe: true })
 
@@ -124,11 +116,7 @@ export function createMutation<
       let prevStatus: MutationStatus = 'idle'
 
       const unsubscribe = observer.subscribe((result) => {
-        dispatchData(result.data)
-        dispatchError(result.error)
-        dispatchStatus(result.status)
-        dispatchVariables(result.variables)
-        dispatchIsPaused(result.isPaused)
+        dispatchResult(result)
 
         if (prevStatus === 'pending') {
           if (result.status === 'success') {
