@@ -1,6 +1,6 @@
 # PR18 review readiness
 
-Checked on 2026-10-08 at upstream PR18 head `ca64fedd309a271de044ee41428b2c16a6bc1b9d`, against base `08c41a7ce71d84c960b632ecab3b460af1557206`. This report is outside PR18.
+Checked on 2026-10-08 at upstream PR18 head `ca64fedd309a271de044ee41428b2c16a6bc1b9d`, against base `08c41a7ce71d84c960b632ecab3b460af1557206`. This report is outside PR18. On 2026-10-08 the history was reorganized to four commits at d660fe51c49bdd8c17e3f82ca7f80a67cc5958e8, with the same tree and final diff. The old head is preserved in backup/pr18-before-history-cleanup.
 
 Ready to request maintainer code review. This does not mean CI is green or the PR is ready to merge.
 
@@ -8,7 +8,7 @@ Ready to request maintainer code review. This does not mean CI is green or the P
 
 The latest Ilya decisions are reflected: existing createQuery/createInfiniteQuery factory forms, core options helpers with attribution, full scoped prefetch/Suspense options, boolean enabled, only name/enabled/refetchInterval at the factory top level, defined queryKey precedence, unchanged peer ranges, one Suspense runtime protocol, focused interoperability tests and the specified documentation pages. CHANGELOG, createMutation, createQueries, lockfile and workflow files have no diff against the base. Compatibility infrastructure and all later experiments remain outside PR18.
 
-No new review comments or formal reviews were present when checked. No additional functional blocker was found. Existing internal assertions and documented nested-composition inference limits remain; this is not a complete type-system rewrite. Optional duplicate-test/docs reductions are not prerequisites for asking for review. The 58-commit history is long; evaluate the final diff, without rewriting public history as part of this readiness check.
+No new review comments or formal reviews were present when checked. No additional functional blocker was found. Existing internal assertions and documented nested-composition inference limits remain; this is not a complete type-system rewrite. Optional duplicate-test/docs reductions are not prerequisites for asking for review. The original 58-commit history was subsequently replaced with the verified four-commit organization at the user's request.
 
 ## Fresh local validation
 
@@ -25,7 +25,7 @@ These checks are local and do not replace GitHub's Node 22/24 and React/Next mat
 
 ## Remote CI
 
-Both current-head pull_request runs have conclusion `action_required` and no jobs started. They need maintainer approval:
+Before the history rewrite, both ca64fed pull_request runs had conclusion `action_required` and no jobs started. They need maintainer approval:
 
 - [CI](https://github.com/ilyaagarkov/effector-tanstack-query/actions/runs/37712813110)
 - [Existing React/Next compat matrix](https://github.com/ilyaagarkov/effector-tanstack-query/actions/runs/37712812951)
