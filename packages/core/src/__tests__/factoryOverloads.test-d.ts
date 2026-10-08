@@ -77,15 +77,24 @@ const selectedPages = {
 }
 // @ts-expect-error select is not a factory-level override
 createInfiniteQuery(selectedPages)
-for (const overrides of [
-  { staleTime: 0 },
-  { placeholderData: { id: 1, title: 'placeholder' } },
-]) {
-  // @ts-expect-error observer settings must be returned by query
-  createQuery({ source: {}, query: titleOptions, ...overrides })
-  // @ts-expect-error observer settings must be returned by query
-  createInfiniteQuery({ source: {}, query: pageOptions, ...overrides })
+const staleTimeOverride = { staleTime: 0 }
+const placeholderOverride = {
+  placeholderData: { id: 1, title: 'placeholder' },
 }
+const infinitePlaceholderOverride = {
+  placeholderData: {
+    pages: [{ id: 1, title: 'placeholder' }],
+    pageParams: [0],
+  },
+}
+// @ts-expect-error staleTime must be returned by the query factory
+createQuery({ source: {}, query: titleOptions, ...staleTimeOverride })
+// @ts-expect-error placeholderData must be returned by the query factory
+createQuery({ source: {}, query: titleOptions, ...placeholderOverride })
+// @ts-expect-error staleTime must be returned by the infinite query factory
+createInfiniteQuery({ source: {}, query: pageOptions, ...staleTimeOverride })
+// @ts-expect-error placeholderData must be returned by the infinite query factory
+createInfiniteQuery({ source: {}, query: pageOptions, ...infinitePlaceholderOverride })
 
 // Parameters must keep seeing the legacy explicit-client signature.
 expectTypeOf<Parameters<typeof createQuery<Todo, Error>>>().toEqualTypeOf<
