@@ -91,7 +91,7 @@ export interface UseQueryResult<TData, TError = Error> {
 export function useQuery<TData, TError = Error>(
   query: QueryResult<TData, TError>,
 ): UseQueryResult<TData, TError> {
-  const state = useUnit({
+  const { mount, unmount, ...state } = useUnit({
     data: query.$data,
     error: query.$error,
     status: query.$status,
@@ -101,18 +101,17 @@ export function useQuery<TData, TError = Error>(
     isError: query.$isError,
     isPlaceholderData: query.$isPlaceholderData,
     fetchStatus: query.$fetchStatus,
+    mount: query.mounted,
+    unmount: query.unmounted,
+    refresh: query.refresh,
   })
-
-  const mount = useUnit(query.mounted)
-  const unmount = useUnit(query.unmounted)
-  const refresh = useUnit(query.refresh)
 
   React.useEffect(() => {
     mount()
     return () => unmount()
   }, [mount, unmount])
 
-  return { ...state, refresh }
+  return state
 }
 
 export interface UseMutationResult<TData, TError, TVariables> {
@@ -150,7 +149,7 @@ export interface UseMutationResult<TData, TError, TVariables> {
 export function useMutation<TData = unknown, TError = Error, TVariables = void>(
   mutation: MutationResult<TData, TError, TVariables>,
 ): UseMutationResult<TData, TError, TVariables> {
-  const state = useUnit({
+  const { start, unmount, ...state } = useUnit({
     data: mutation.$data,
     error: mutation.$error,
     status: mutation.$status,
@@ -160,20 +159,19 @@ export function useMutation<TData = unknown, TError = Error, TVariables = void>(
     isSuccess: mutation.$isSuccess,
     isError: mutation.$isError,
     isIdle: mutation.$isIdle,
+    start: mutation.start,
+    unmount: mutation.unmounted,
+    mutate: mutation.mutate,
+    mutateWith: mutation.mutateWith,
+    reset: mutation.reset,
   })
-
-  const start = useUnit(mutation.start)
-  const unmount = useUnit(mutation.unmounted)
-  const mutate = useUnit(mutation.mutate)
-  const mutateWith = useUnit(mutation.mutateWith)
-  const reset = useUnit(mutation.reset)
 
   React.useEffect(() => {
     start()
     return () => unmount()
   }, [start, unmount])
 
-  return { ...state, mutate, mutateWith, reset }
+  return state
 }
 
 // =============================================================================
@@ -260,7 +258,7 @@ export interface UseInfiniteQueryResult<TData, TError> {
 export function useInfiniteQuery<TData, TError = Error, TPageParam = unknown>(
   query: InfiniteQueryResult<TData, TError, TPageParam>,
 ): UseInfiniteQueryResult<TData, TError> {
-  const state = useUnit({
+  const { mount, unmount, ...state } = useUnit({
     data: query.$data,
     error: query.$error,
     status: query.$status,
@@ -276,20 +274,19 @@ export function useInfiniteQuery<TData, TError = Error, TPageParam = unknown>(
     isFetchingPreviousPage: query.$isFetchingPreviousPage,
     isFetchNextPageError: query.$isFetchNextPageError,
     isFetchPreviousPageError: query.$isFetchPreviousPageError,
+    mount: query.mounted,
+    unmount: query.unmounted,
+    refresh: query.refresh,
+    fetchNextPage: query.fetchNextPage,
+    fetchPreviousPage: query.fetchPreviousPage,
   })
-
-  const mount = useUnit(query.mounted)
-  const unmount = useUnit(query.unmounted)
-  const refresh = useUnit(query.refresh)
-  const fetchNextPage = useUnit(query.fetchNextPage)
-  const fetchPreviousPage = useUnit(query.fetchPreviousPage)
 
   React.useEffect(() => {
     mount()
     return () => unmount()
   }, [mount, unmount])
 
-  return { ...state, refresh, fetchNextPage, fetchPreviousPage }
+  return state
 }
 
 // =============================================================================

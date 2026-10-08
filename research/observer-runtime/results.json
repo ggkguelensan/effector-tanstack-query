@@ -1,0 +1,131 @@
+{
+  "baseline": "ca64fedd309a271de044ee41428b2c16a6bc1b9d",
+  "measurements": {
+    "baseline": {
+      "react": {
+        "minified": 8766,
+        "gzip": 2298
+      },
+      "core": {
+        "minified": 15309,
+        "gzip": 4915
+      },
+      "all": {
+        "minified": 23924,
+        "gzip": 6855
+      },
+      "query": {
+        "minified": 5766,
+        "gzip": 2353
+      },
+      "infinite": {
+        "minified": 7225,
+        "gzip": 2726
+      },
+      "mutation": {
+        "minified": 2623,
+        "gzip": 1172
+      },
+      "family": {
+        "minified": 3778,
+        "gzip": 1567
+      },
+      "suspense": {
+        "minified": 13807,
+        "gzip": 4175
+      },
+      "familyWithQueryCore": {
+        "minified": 16724,
+        "gzip": 5810
+      },
+      "allWithQueryCore": {
+        "minified": 41553,
+        "gzip": 12205
+      }
+    },
+    "candidate": {
+      "react": {
+        "minified": 8780,
+        "gzip": 2312
+      },
+      "core": {
+        "minified": 15309,
+        "gzip": 4915
+      },
+      "all": {
+        "minified": 23938,
+        "gzip": 6862
+      },
+      "query": {
+        "minified": 5766,
+        "gzip": 2353
+      },
+      "infinite": {
+        "minified": 7225,
+        "gzip": 2726
+      },
+      "mutation": {
+        "minified": 2623,
+        "gzip": 1172
+      },
+      "family": {
+        "minified": 3778,
+        "gzip": 1567
+      },
+      "suspense": {
+        "minified": 13807,
+        "gzip": 4175
+      },
+      "familyWithQueryCore": {
+        "minified": 16724,
+        "gzip": 5810
+      },
+      "allWithQueryCore": {
+        "minified": 41567,
+        "gzip": 12210
+      }
+    }
+  },
+  "deltas": {
+    "react": {
+      "minified": 14,
+      "gzip": 14
+    },
+    "core": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "all": {
+      "minified": 14,
+      "gzip": 7
+    },
+    "query": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "infinite": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "mutation": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "family": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "suspense": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "familyWithQueryCore": {
+      "minified": 0,
+      "gzip": 0
+    },
+    "allWithQueryCore": {
+      "minified": 14,
+      "gzip": 5
+    }
+  }
+}
