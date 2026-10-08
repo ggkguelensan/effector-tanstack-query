@@ -8,6 +8,8 @@ Keep TanStack Query's native React, Router/Start and SSR integrations. Effector 
 
 Use native React hooks for UI query state unless a component explicitly needs Effector model stores. Do not migrate solely to replace the native API. Distinguish observing a query from initiating an operation.
 
+Current PR18 readiness is recorded in [the review-readiness report](./pr18-review-readiness.md).
+
 ## Order
 
 1. Finish PR18 within Ilya's agreed scope. Complete final verification, assess readiness, prepare a short review-ready comment. Do not mix the work below into it.
