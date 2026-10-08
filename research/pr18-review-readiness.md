@@ -34,6 +34,6 @@ The existing compat workflow is inherited from the base; it is not the separate 
 
 ## Review-ready comment — posted
 
-> @ilyaagarkov, PR18 is ready for review within the agreed scope. Local tests, types, builds, publish checks, docs and both examples pass. GitHub workflows are awaiting maintainer approval. Please look closely at inline option preservation and factory options before Suspense mount. Follow-ups remain separate.
+> @ilyaagarkov, PR18 is ready for review. Local tests, types, builds, publish checks, docs and both examples pass. Thank you for helping clarify the direction and scope of this PR.
 
 The user authorized handoff on 2026-10-08. [The comment tagging Ilya was posted](https://github.com/ilyaagarkov/effector-tanstack-query/pull/18#issuecomment-6051854941). A formal reviewer request was attempted, but GitHub rejected RequestReviewsByLogin because ggkguelensan lacks repository permissions. The comment was successfully delivered; wait for maintainer CI approval and review.
